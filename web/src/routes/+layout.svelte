@@ -1,7 +1,8 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
-  import '$lib/design/theme'; // Initializes data-theme on <html>
+  import Header from '$lib/components/Header/index.svelte';
+  import Footer from '$lib/components/Footer/index.svelte';
+  import ToastViewport from '$lib/components/ui/ToastViewport.svelte';
+  import '$lib/design/theme';
   import '../app.scss';
 
   let { children } = $props();
@@ -15,21 +16,15 @@
 
 <Footer />
 
+<ToastViewport />
+
 <style lang="scss">
   main {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
     width: 100%;
+    max-width: 1024px;
+    margin: var(--sp-6) auto 0;
+    padding: 0 var(--sp-4);
     box-sizing: border-box;
-    padding-left: 48px;
-    padding-right: 48px;
-  }
-  @media only screen and (max-width: 500px) {
-    main {
-      padding-left: 30px;
-      padding-right: 30px;
-    }
   }
 </style>

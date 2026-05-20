@@ -21,6 +21,12 @@
   "auth.login.error.bad_password": "Wrong password",
   "auth.login.error.rate_limited": "Too many attempts, try again later",
 
+  "nav.favorites.title": "Favorites",
+  "nav.empty.search": "No nav items match",
+  "nav.empty.search.hint": "Try clearing filters or different keywords",
+  "nav.empty.data": "No nav data yet",
+  "nav.empty.data.hint": "Sign in to add the first item",
+
   "editor.item.deleteConfirm": "Delete \"{{name}}\"?",
   "editor.item.new": "New nav item",
 
