@@ -1,0 +1,13 @@
+{
+  "name": "navigation_website-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "e2e": "playwright test --config tests/playwright.config.ts",
+    "e2e:headed": "playwright test --config tests/playwright.config.ts --headed",
+    "e2e:ui": "playwright test --config tests/playwright.config.ts --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

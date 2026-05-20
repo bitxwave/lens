@@ -1,206 +1,119 @@
-# Navigation website
+# Navigation Website
 
-A static navigation website written in svelte3.
+A self-hostable navigation/bookmark dashboard with a Rust backend (Axum + SQLite),
+a SvelteKit SPA frontend, and an inline editor for the admin.
 
-> Note: UI Design are referenced from other sites
+## Quickstart (Docker)
 
-## Preview
+```bash
+docker run -d \
+  --name nav \
+  -p 8080:8080 \
+  -v ./data:/app/data \
+  -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
+  navsrv:latest
+```
 
-- Desktop
+Visit http://localhost:8080. Click **Log in** in the top-right, enter your password,
+then click **Edit** to add/remove nav items inline.
 
-  ![Desktop website](./snapshot_desktop.png)
-
-  - Site Switch
-
-    ![Desktop Site Switch](./snapshot_desktop_site_switch.png)
-
-- H5
-
-  ![H5 Website](./snapshot_h5.png)
-
-  - Site Switch
-
-    ![H5 Site Switch](./snapshot_h5_site_switch.png)
+For HTTPS with Let's Encrypt, use `docker compose up -d` with the bundled
+`docker-compose.yml` (set `DOMAIN=nav.example.com`).
 
 ## Project layout
 
-- `web/` — SvelteKit SPA (`pnpm dev` / `pnpm build`)
-- `server/` — Rust backend (`cargo run`); see `server/README.md`
-- `docs/superpowers/` — design specs and implementation plans
+| Path | Purpose |
+|---|---|
+| `web/` | SvelteKit 2 + Svelte 5 SPA. `pnpm dev` for local dev (proxies `/api` to `:8080`). |
+| `server/` | Rust binary (`navsrv`). `cargo run` for local dev (default port 8080). |
+| `tests/` | Playwright e2e specs covering read + login + create. |
+| `scripts/` | `docker-smoke.sh`, `e2e.sh`, `dump-bootstrap.mjs`. |
+| `docs/superpowers/` | Design specs and implementation plans. |
+| `Dockerfile` | Multi-stage build → distroless single image. |
+| `docker-compose.yml` + `Caddyfile` | Optional TLS-fronted deploy. |
 
-The production deploy is a single Docker image bundling both (Plan 5).
+## Local development
 
-## Pre-install
-
-- [Install git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-  
-- [Install pnpm](https://www.pnpm.cn/installation)
-
-- Clone the project to local
-  
-  ```bash
-  git clone https://github.com/picopock/navigation_website.git
-  ```
-
-- Install dependencies
-
-  ```bash
-  pnpm install
-  ```
-
-## Developing
-
-Once you've created a project and installed dependencies with `pnpm`, start a development server:
+Backend (terminal A):
 
 ```bash
-pnpm dev --host
-
-# or start the server and open the app in a new browser tab
-pnpm dev -- --open
+cd server
+cargo run            # listens on :8080
 ```
 
-## Customizing
+On first boot, an admin password is generated and printed; it's also written to
+`server/dev-data/INITIAL_PASSWORD.txt` (auto-deleted after the first password
+change via the UI).
 
-Customize your navigation page
+Frontend (terminal B):
 
-- Customize by modify the build product
-- Customize by modify the source code
+```bash
+cd web
+pnpm install         # uses pinned pnpm 10 via packageManager
+pnpm dev             # listens on :5173, proxies /api to :8080
+```
 
-  - Customize website information
+Run unit tests:
 
-    The website information is saved in `src/lib/constants/siteInfo.ts` file
+```bash
+cd web && pnpm test:unit
+cd server && SQLX_OFFLINE=true cargo test
+```
 
-    | Name                  | Desc                                             |
-    | :-------------------- | :----------------------------------------------- |
-    | `siteName`            | Site name                                        |
-    | `siteCopyright`       | Site copyright information                       |
-    | `siteICPFiling`       | Site ICP filing information                      |
-    | `siteICPFilingURL`    | The link of ICP filing query website             |
-    | `sitePoliceFiling`    | Public security filing information of website    |
-    | `sitePoliceFilingURL` | The link of Public security filing query website |
+Run e2e (requires Docker):
 
-  - Customize navigation information
+```bash
+bash scripts/e2e.sh
+```
 
-    The navigation information is saved in `src/lib/constants/nav.ts` file
+## Configuration (env)
 
-    - Site List Definition
+| Var | Default | Notes |
+|---|---|---|
+| `PORT` | `8080` | TCP port |
+| `DATA_DIR` | `/app/data` (Docker) / `./dev-data` (cargo) | SQLite + uploads + INITIAL_PASSWORD |
+| `STATIC_DIR` | `/app/static` (Docker) / `../web/build` (cargo) | SvelteKit build output |
+| `BOOTSTRAP_ADMIN_PASSWORD` | (unset) | First boot only; otherwise random + file |
+| `SECURE_COOKIES` | `false` (dev) / `true` (compose) | `true` requires HTTPS |
+| `RUST_LOG` | `info,sqlx=warn,tower_http=info` | tracing-subscriber filter |
 
-      | Site Item Field | Type   | Desc                                                           |
-      | :-------------- | :----- | :------------------------------------------------------------- |
-      | `name`          | string | Site name                                                      |
-      | `value`         | string | Value of site. It will be use as key field to define site link |
+## Resetting the admin password
 
-      - Default Site Definition
+```bash
+docker exec -it nav navsrv reset-password --password=<new>
+# or interactively (the binary prompts)
+```
 
-        - `defaultSiteIndex`
-    
-          The default site index of site list. Start index is `0`, not `1`. Default value is `0`.
+This invalidates all sessions and removes any leftover `INITIAL_PASSWORD.txt`.
 
-    - Nav List Definition
+## Architecture
 
-      | Nav Item Field | Type   | Desc                                                       |
-      | :------------- | :----- | :--------------------------------------------------------- |
-      | `name`         | string | Navigation item name                                       |
-      | `link`         | object | The link of all site defined here                          |
-      | `source`       | string | Navigation item logo. support http(s)、image or svg format |
+See `docs/superpowers/specs/2026-05-19-rust-navigation-platform-design.md` for the
+full design. Briefly:
 
-      > Note： if the `source` field is not `http(s)` format, such as `jellyfin.svg`, you will need to put `jellyfin.svg` resource into  `static/navIcons/` folder.
+- **Frontend**: Svelte 5 (runes) + SvelteKit 2, no UI library — design tokens and
+  10 hand-built primitives under `web/src/lib/components/ui/`. `apiClient` validates
+  every response against zod schemas mirroring the backend types. Self-implemented
+  i18n (~80 lines), no library.
+- **Backend**: Axum 0.7 + SQLx (SQLite WAL). 3NF schema. Single-admin auth
+  (bcrypt + signed cookie session via `tower-sessions`). CRUD endpoints behind a
+  `RequireAuth` extractor. Favicon proxy with 7-day disk cache. CLI subcommand
+  for password reset.
+- **Deploy**: Multi-stage Dockerfile produces a distroless image (~70 MB). The
+  Rust binary serves both the SPA (`tower-http::ServeDir` with SPA fallback) and
+  `/api/*`.
 
-      > Note: if the link of current site is not defined under the `link` field, the nav item will not be show.
+## Roadmap
 
-    - example
+Future enhancements (not in current shipped Plans 1–5):
 
-      ```ts
-      export const siteList: ISite[] = [
-        { name: '上海', value: 'shangHai' },
-        { name: '北京', value: 'beiJing' },
-        { name: '广州', value: 'guangZhou' },
-        { name: '深圳', value: 'shenZhen' },
-      ];
+- Drag-and-drop reorder of nav items
+- Full management UI for groups, sites, tags (currently editable via API only)
+- Site settings dialog (site name, avatar upload, ICP filings, default theme)
+- Multi-user / OAuth / audit log
+- Real-time multi-device sync (SSE)
+- PWA / offline
 
-      export const navList: INavItem[] = [
-        {
-          name: 'RouterOS',
-          link: {
-            shangHai: 'http://10.0.0.1',
-            beiJing: 'http://10.1.0.1'
-          },
-          source: 'routerOS.png'
-        },
-        {
-          name: 'OpenWRT',
-          link: {
-            shangHai: 'http://10.0.0.2',
-            beiJing: 'http://10.1.0.2'
-          },
-          source: 'openWRT.png'
-        },
-        {
-          name: 'Esxi',
-          link: {
-            shangHai: 'http://10.0.0.3',
-            beiJing: 'http://10.1.0.3',
-            guangZhou: 'http://10.2.0.3',
-          },
-          source: 'esxi.png'
-        },
-        {
-          name: 'K2P',
-          link: {
-            shangHai: 'http://10.0.0.4',
-            beiJing: 'http://10.1.0.4',
-            shenZhen: 'http://10.2.0.4',
-          },
-          source: 'phicomm.png'
-        }
-      ];
-      ```
+## License
 
-- Customize Avatar
-
-  - put resource into `static/` folder.
-
-  - rename resource with `avatar.png`.
-  
-## Building
-
-- Build locally
-
-  To create a production version of your app:
-
-  ```bash
-  pnpm build
-  ```
-
-  You can preview the production build with `pnpm preview`.
-
-- [Build with github action](https://github.com/picopock/navigation_website/actions)
-
-## Deploying
-
-- Deploy with static resource server
-  
-  when you run command `pnpm build`, the compile result will be put into `build` folder. Copy all files in the `build` folder to the static resource server.
-
-- Deploy with docker
-
-  - The docker image uses nginx as the static resource server. The nginx configuration file is in `config/nginx/` folder.
-
-    By default, this nginx is in https mode, and the http(80) request will be redirect to https. You need put the certificate file into `config/nginx/cert/` folder and update `nginx.conf` as follow:
-
-    ```conf
-    ssl_certificate               /etc/nginx/cert/<cert name>.pem;
-    ssl_certificate_key           /etc/nginx/cert/<cert name>.key;
-    ```
-
-    > Note: `<cert name>` will be replace with your certificate name.
-
-  - Build docker image based on `Dockerfile`.
-  - Pull docker iamge to your machine
-  - Run container whit docker command
-  
-    ```sh
-    // eg.
-    // Need to be update according to individual circumstances
-    docker run -d --restart=always --name navigation_website_<version> -p 8080:80 -p 8443:443 xxxx.com/xxxx/navigation_website:<version>
-    ```
+MIT.

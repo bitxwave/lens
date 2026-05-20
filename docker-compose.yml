@@ -1,0 +1,33 @@
+# docker-compose.yml — sample. Adjust DOMAIN / image tag for your deploy.
+services:
+  nav:
+    build: .
+    image: navsrv:latest
+    container_name: nav
+    restart: unless-stopped
+    environment:
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      RUST_LOG: ${RUST_LOG:-info,sqlx=warn,tower_http=info}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - nav
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -14,7 +14,7 @@ async fn seed_populates_sites_and_groups() {
     assert!(groups.iter().any(|g| g.slug == "network"));
     assert_eq!(
         cfg.get("site_name").await.unwrap().as_deref(),
-        Some("Navigation")
+        Some("Pico 的小站导航")
     );
 }
 

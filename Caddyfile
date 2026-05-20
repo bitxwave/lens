@@ -1,0 +1,6 @@
+# Caddyfile — auto-TLS via Let's Encrypt.
+# Set DOMAIN env var (e.g. nav.example.com) before `docker compose up`.
+{$DOMAIN:localhost} {
+    reverse_proxy nav:8080
+    encode gzip
+}

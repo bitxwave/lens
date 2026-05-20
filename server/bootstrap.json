@@ -1,16 +1,18 @@
 {
   "schemaVersion": 1,
   "meta": {
-    "siteName": "Navigation",
+    "siteName": "Pico 的小站导航",
     "siteAvatarPath": "/avatar.png",
-    "siteCopyright": "Copyright © 2026 — All rights reserved.",
-    "siteIcp":  null,
+    "siteCopyright": "Copyright © 2026 Pico. All rights reserved.",
+    "siteIcp": null,
     "sitePolice": null,
     "defaultTheme": "system"
   },
   "sites": [
     { "value": "shangHai", "name": "上海", "name_i18n": { "en": "Shanghai" }, "is_default": true,  "sort_order": 0 },
-    { "value": "beiJing",  "name": "北京", "name_i18n": { "en": "Beijing"  }, "is_default": false, "sort_order": 1 }
+    { "value": "beiJing",  "name": "北京", "name_i18n": { "en": "Beijing"  }, "is_default": false, "sort_order": 1 },
+    { "value": "guangZhou","name": "广州", "name_i18n": { "en": "Guangzhou"}, "is_default": false, "sort_order": 2 },
+    { "value": "shenZhen", "name": "深圳", "name_i18n": { "en": "Shenzhen" }, "is_default": false, "sort_order": 3 }
   ],
   "groups": [
     { "slug": "network", "name": "网络", "name_i18n": { "en": "Network" }, "sort_order": 0 },
@@ -19,5 +21,26 @@
     { "slug": "tools",   "name": "工具", "name_i18n": { "en": "Tools"   }, "sort_order": 3 }
   ],
   "tags": [],
-  "items": []
+  "items": [
+    { "name": "RouterOS",     "groupSlug": "network", "iconKind": "asset", "iconValue": "routerOS.png",         "links": { "shangHai": "http://10.0.0.1",  "beiJing": "http://10.1.0.1" }, "tagSlugs": [] },
+    { "name": "OpenWRT",      "groupSlug": "network", "iconKind": "asset", "iconValue": "openWRT.png",          "links": { "shangHai": "http://10.0.0.2",  "beiJing": "http://10.1.0.2" }, "tagSlugs": [] },
+    { "name": "K2P",          "groupSlug": "network", "iconKind": "asset", "iconValue": "phicomm.png",          "links": { "shangHai": "http://10.0.0.4",  "beiJing": "http://10.1.0.4", "shenZhen": "http://10.2.0.4" }, "tagSlugs": [] },
+    { "name": "qBittorrent",  "groupSlug": "network", "iconKind": "asset", "iconValue": "qBittorrent.png",      "links": { "shangHai": "http://10.0.0.11:8085", "beiJing": "http://10.1.0.11:8085" }, "tagSlugs": [] },
+    { "name": "Jackett",      "groupSlug": "network", "iconKind": "asset", "iconValue": "jackett.png",          "links": { "shangHai": "http://10.0.0.13",  "beiJing": "http://10.1.0.13" }, "tagSlugs": [] },
+
+    { "name": "Jellyfin",     "groupSlug": "media",   "iconKind": "asset", "iconValue": "jellyfin.svg",         "links": { "shangHai": "http://10.0.0.12",  "beiJing": "http://10.1.0.12" }, "tagSlugs": [] },
+    { "name": "Surveillance", "groupSlug": "media",   "iconKind": "asset", "iconValue": "surveillanceStation.png","links": { "shangHai": "http://10.0.0.5:9900", "beiJing": "http://10.1.0.5:9900" }, "tagSlugs": [] },
+    { "name": "相册",         "name_i18n": { "en": "Album" }, "groupSlug": "media", "iconKind": "asset", "iconValue": "album.png", "links": { "shangHai": "http://10.0.0.5:5080", "beiJing": "http://10.1.0.5:5080" }, "tagSlugs": [] },
+
+    { "name": "Synology",     "groupSlug": "nas",     "iconKind": "asset", "iconValue": "synology.png",         "links": { "shangHai": "http://10.0.0.5:5000", "beiJing": "http://10.1.0.5:5000" }, "tagSlugs": [] },
+    { "name": "文件夹",       "name_i18n": { "en": "Files" }, "groupSlug": "nas", "iconKind": "asset", "iconValue": "file.png", "links": { "shangHai": "http://10.0.0.5:7000", "beiJing": "http://10.1.0.5:7000" }, "tagSlugs": [] },
+    { "name": "Nas Tools",    "groupSlug": "nas",     "iconKind": "asset", "iconValue": "nasTools.png",         "links": { "shangHai": "http://10.0.0.14",  "beiJing": "http://10.1.0.14" }, "tagSlugs": [] },
+
+    { "name": "Esxi",          "groupSlug": "tools",  "iconKind": "asset", "iconValue": "esxi.png",             "links": { "shangHai": "http://10.0.0.3",  "beiJing": "http://10.1.0.3", "guangZhou": "http://10.2.0.3" }, "tagSlugs": [] },
+    { "name": "Home Assistant","groupSlug": "tools",  "iconKind": "asset", "iconValue": "homeAssistant.svg",    "links": { "shangHai": "http://10.0.0.5",  "beiJing": "http://10.1.0.5" }, "tagSlugs": [] },
+    { "name": "思源笔记",      "name_i18n": { "en": "SiYuan Notes" }, "groupSlug": "tools", "iconKind": "asset", "iconValue": "siyuanNote.png", "links": { "shangHai": "http://10.0.0.16:6806/", "beiJing": "http://10.1.0.16:6806/" }, "tagSlugs": [] },
+    { "name": "博客",          "name_i18n": { "en": "Blog" }, "groupSlug": "tools", "iconKind": "asset", "iconValue": "blog.png", "links": { "shangHai": "http://10.0.0.6",  "beiJing": "http://10.1.0.6" }, "tagSlugs": [] },
+    { "name": "Portainer",     "groupSlug": "tools",  "iconKind": "asset", "iconValue": "portainer.svg",        "links": { "shangHai": "http://10.0.0.10:9443", "beiJing": "http://10.1.0.10:9443" }, "tagSlugs": [] },
+    { "name": "青龙",          "name_i18n": { "en": "QingLong" }, "groupSlug": "tools", "iconKind": "asset", "iconValue": "qinglong.png", "links": { "shangHai": "http://10.0.0.15:5700", "beiJing": "http://10.1.0.15:5700" }, "tagSlugs": [] }
+  ]
 }
