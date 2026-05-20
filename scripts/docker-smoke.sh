@@ -29,7 +29,7 @@ echo "=== health ==="
 curl -sf "http://127.0.0.1:$PORT/api/health"
 echo
 echo "=== nav ==="
-curl -sf "http://127.0.0.1:$PORT/api/nav" | python3 -c 'import sys,json; b=json.load(sys.stdin); print(f"sites={len(b[\"sites\"])} groups={len(b[\"groups\"])} items={len(b[\"items\"])}")'
+curl -sf "http://127.0.0.1:$PORT/api/nav" | python3 -c 'import sys,json; b=json.load(sys.stdin); print("sites={} groups={} items={}".format(len(b["sites"]), len(b["groups"]), len(b["items"])))'
 echo "=== login ==="
 curl -sf -c /tmp/c.txt -X POST -H 'Content-Type: application/json' \
   -d "{\"password\":\"$PASSWORD\"}" "http://127.0.0.1:$PORT/api/auth/login" -w 'login=%{http_code}\n'

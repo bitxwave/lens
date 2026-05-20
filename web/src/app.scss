@@ -4,106 +4,33 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  overflow-y: auto;
-  overflow-y: overlay;
-}
-
-:root {
-  --text-color: #fff;
-  --text-hover-color: rgba(107, 19, 158, 0.4);
-  --nav-item-bg-color: #fff;
-  --linear-gradient: linear-gradient(
-    to right bottom,
-    rgba(222, 83, 71, 0.6) 0%,
-    rgba(75, 138, 244, 0.6) 100%
-  );
+  padding: 0;
 }
 
 #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-image: var(--linear-gradient);
+  background: var(--c-bg);
+  color: var(--c-text);
 }
 
-/******************************* scroll bar start ************************************/
+/* Scrollbar — token-driven, theme-aware */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
+  width: 8px;
+  height: 8px;
 }
-::-ms-scrollbar {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-}
-:-ms-scrollbar {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-}
-::-o-scrollbar {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-}
-::scrollbar {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #a5b2e7;
-  border-radius: 3px;
-  box-shadow:
-    inset 2px 2px 2px rgba(255, 255, 255, 0.25),
-    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
-}
-::-ms-scrollbar-thumb {
-  background: #a5b2e7;
-  border-radius: 3px;
-  box-shadow:
-    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
-    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
-}
-:-ms-scrollbar-thumb {
-  background: #a5b2e7;
-  border-radius: 3px;
-  box-shadow:
-    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
-    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
-}
-::-o-scrollbar-thumb {
-  background: #a5b2e7;
-  border-radius: 3px;
-  box-shadow:
-    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
-    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
-}
-::scrollbar-thumb {
-  background: #a5b2e7;
-  border-radius: 3px;
-  box-shadow:
-    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
-    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
-}
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-::-ms-scrollbar-track {
-  background: transparent;
+::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: var(--rd-pill);
+
+  &:hover {
+    background: var(--c-text-3);
+  }
 }
-:-ms-scrollbar-track {
-  background: transparent;
-}
-::-o-scrollbar-track {
-  background: transparent;
-}
-::scrollbar-track {
-  background: transparent;
-}
-/******************************* scroll bar end ************************************/

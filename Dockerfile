@@ -10,16 +10,16 @@ COPY web/ ./
 RUN pnpm build
 
 # ──── Stage 2: build server ────
-FROM rust:1.79-slim AS server-build
+FROM rust:1.88-slim AS server-build
 WORKDIR /server
 RUN apt-get update && \
     apt-get install -y --no-install-recommends pkg-config libssl-dev ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 # Cache deps layer
 COPY server/Cargo.toml server/Cargo.lock ./
-RUN mkdir -p src && echo 'fn main(){}' > src/main.rs && \
+RUN mkdir -p src && echo 'fn main(){}' > src/main.rs && echo '' > src/lib.rs && \
     cargo build --release --bin navsrv && \
-    rm -rf src target/release/deps/navsrv* target/release/navsrv
+    rm -rf src target/release/deps/navsrv* target/release/libnavsrv* target/release/navsrv
 # Real build
 COPY server/ ./
 ENV SQLX_OFFLINE=true
