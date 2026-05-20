@@ -92,13 +92,15 @@
   >
     <img class="icon" src={iconSrc()} alt="" loading="lazy" />
   </button>
-  <button
-    type="button"
-    class="fav"
-    aria-label={isFav ? 'Unfavorite' : 'Favorite'}
-    aria-pressed={isFav}
-    onclick={onFavClick}>★</button
-  >
+  {#if !$editModeStore}
+    <button
+      type="button"
+      class="fav"
+      aria-label={isFav ? 'Unfavorite' : 'Favorite'}
+      aria-pressed={isFav}
+      onclick={onFavClick}>★</button
+    >
+  {/if}
   <span class="label">{displayName}</span>
 </div>
 

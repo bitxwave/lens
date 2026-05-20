@@ -30,7 +30,8 @@
 
 <style lang="scss">
   .search {
-    flex: 1;
+    width: 100%;
     max-width: 480px;
+    margin: 0 auto;
   }
 </style>

@@ -27,7 +27,10 @@
     justify-content: center;
     padding: var(--sp-5) var(--sp-4);
     margin-top: var(--sp-8);
-    border-top: 1px solid var(--c-border);
+    background: color-mix(in srgb, var(--c-surface) 75%, transparent);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border-top: 1px solid color-mix(in srgb, var(--c-border) 60%, transparent);
     color: var(--c-text-3);
     font-size: var(--fs-xs);
   }

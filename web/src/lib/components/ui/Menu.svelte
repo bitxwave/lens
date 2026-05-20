@@ -53,15 +53,24 @@
     if (!open) return;
     focusedIdx = 0;
     requestAnimationFrame(() => menuEl?.focus());
-  });
 
-  function onWindowClick(e: MouseEvent) {
-    if (!open || !menuEl) return;
-    if (!menuEl.contains(e.target as Node)) close();
-  }
+    // Click-outside dismiss. Defer attaching so the click that opened the menu
+    // doesn't immediately close it on the same event flow.
+    let armed = false;
+    const armTimer = setTimeout(() => (armed = true), 0);
+    const handler = (e: MouseEvent) => {
+      if (!armed || !menuEl) return;
+      if (!menuEl.contains(e.target as Node)) close();
+    };
+    window.addEventListener('mousedown', handler);
+    return () => {
+      clearTimeout(armTimer);
+      window.removeEventListener('mousedown', handler);
+    };
+  });
 </script>
 
-<svelte:window onkeydown={onKey} onclick={onWindowClick} />
+<svelte:window onkeydown={onKey} />
 
 {#if open}
   <div bind:this={menuEl} class="menu" role="menu" tabindex="-1" style="left: {x}px; top: {y}px">

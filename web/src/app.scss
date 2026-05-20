@@ -10,11 +10,35 @@ body {
   padding: 0;
 }
 
+/* Vibrant ambient gradient — sits behind the SPA so the header/footer's
+ * backdrop-blur picks it up as the modern-minimal "frosted glass" feel.
+ * Light theme: warm coral → cool indigo. Dark theme: deep violets.
+ */
+:root {
+  --gradient-bg: radial-gradient(
+      ellipse at top left,
+      rgba(240, 145, 130, 0.55) 0%,
+      transparent 55%
+    ),
+    radial-gradient(ellipse at bottom right, rgba(99, 132, 240, 0.5) 0%, transparent 55%),
+    linear-gradient(135deg, #fef0eb 0%, #eef0ff 100%);
+}
+
+[data-theme='dark'] {
+  --gradient-bg: radial-gradient(
+      ellipse at top left,
+      rgba(110, 40, 90, 0.6) 0%,
+      transparent 55%
+    ),
+    radial-gradient(ellipse at bottom right, rgba(50, 60, 140, 0.55) 0%, transparent 55%),
+    linear-gradient(135deg, #14101c 0%, #0e0e18 100%);
+}
+
 #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: var(--c-bg);
+  background: var(--gradient-bg) fixed;
   color: var(--c-text);
 }
 
