@@ -19,6 +19,7 @@ pub async fn assemble_bundle(
             "site_police_text",
             "site_police_url",
             "default_theme",
+            "layout_mode",
         ])
         .await?;
 
@@ -50,6 +51,11 @@ pub async fn assemble_bundle(
             .get("default_theme")
             .cloned()
             .unwrap_or_else(|| "system".into()),
+        layout_mode: cfg
+            .get("layout_mode")
+            .cloned()
+            .filter(|v| v == "flat" || v == "grouped")
+            .unwrap_or_else(|| "grouped".into()),
     };
 
     Ok(NavBundle {

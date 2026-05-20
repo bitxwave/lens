@@ -64,7 +64,9 @@ export const MetaSchema = z.object({
   siteCopyright: z.string(),
   siteIcp: LinkSchema.nullable(),
   sitePolice: LinkSchema.nullable(),
-  defaultTheme: z.enum(['system', 'light', 'dark'])
+  defaultTheme: z.enum(['system', 'light', 'dark']),
+  /** "grouped" = render group sections; "flat" = single grid (legacy) */
+  layoutMode: z.enum(['grouped', 'flat']).catch('grouped')
 });
 export type Meta = z.infer<typeof MetaSchema>;
 

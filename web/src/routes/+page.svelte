@@ -1,7 +1,14 @@
 <script lang="ts">
   import { navDataStore } from '$lib/stores/navData';
-  import { visibleSections, hasActiveFilter, clearFilters } from '$lib/stores/visible';
+  import {
+    visibleSections,
+    visibleFlatItems,
+    layoutMode,
+    hasActiveFilter,
+    clearFilters
+  } from '$lib/stores/visible';
   import GroupSection from '$lib/components/Nav/GroupSection.svelte';
+  import NavGrid from '$lib/components/Nav/NavGrid.svelte';
   import FavoritesSection from '$lib/components/Nav/FavoritesSection.svelte';
   import EmptyState from '$lib/components/Nav/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -61,6 +68,13 @@
         </div>
       {/if}
     {/if}
+  {:else if $layoutMode === 'flat'}
+    <section class="flat">
+      <NavGrid items={$visibleFlatItems} groupId={null} onEdit={openEdit} />
+      {#if $editModeStore}
+        <NewItemAffordance onClick={() => openCreate(null)} />
+      {/if}
+    </section>
   {:else}
     {#each $visibleSections as section (section.group?.id ?? 'ungrouped')}
       <GroupSection {section} onEdit={openEdit} />
@@ -85,5 +99,8 @@
     display: flex;
     justify-content: center;
     margin-top: var(--sp-3);
+  }
+  .flat {
+    margin-bottom: var(--sp-7);
   }
 </style>

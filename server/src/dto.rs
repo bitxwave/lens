@@ -72,6 +72,9 @@ pub struct Meta {
     pub site_icp: Option<Link>,
     pub site_police: Option<Link>,
     pub default_theme: String,
+    /// "grouped" (default) renders items inside their group sections;
+    /// "flat" renders all items in a single grid (legacy nav layout).
+    pub layout_mode: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

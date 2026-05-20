@@ -45,3 +45,26 @@ export function changePassword(current: string, next: string): Promise<void> {
     body: { current, next }
   });
 }
+
+export interface ReorderEntry {
+  id: number;
+  sortOrder: number;
+  groupId?: number | null;
+}
+
+export function reorderItems(entries: ReorderEntry[]): Promise<void> {
+  return apiClient<void>({
+    method: 'POST',
+    path: '/api/items/reorder',
+    body: entries
+  });
+}
+
+/** PATCH /api/config — body is array of { key, value }. Admin auth required. */
+export function patchConfig(pairs: { key: string; value: string }[]): Promise<void> {
+  return apiClient<void>({
+    method: 'PATCH',
+    path: '/api/config',
+    body: pairs
+  });
+}

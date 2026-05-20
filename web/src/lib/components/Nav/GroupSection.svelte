@@ -19,7 +19,7 @@
     <GroupHeader group={section.group} />
   {/if}
   {#if isOpen}
-    <NavGrid items={section.items} {onEdit} />
+    <NavGrid items={section.items} groupId={section.group?.id ?? null} {onEdit} />
   {/if}
 </section>
 

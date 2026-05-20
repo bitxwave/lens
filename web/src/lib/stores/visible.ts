@@ -92,6 +92,16 @@ export const allTagSlugs: Readable<string[]> = derived(navDataStore, ($n) =>
   $n.bundle ? $n.bundle.tags.map((t) => t.slug).sort() : []
 );
 
+/** Flat layout: all visible items in one list (no grouping). */
+export const visibleFlatItems: Readable<Item[]> = derived(visibleSections, ($sections) =>
+  $sections.flatMap((s) => s.items)
+);
+
+/** Backend-controlled layout mode (read from bundle.meta). */
+export const layoutMode: Readable<'grouped' | 'flat'> = derived(navDataStore, ($n) =>
+  $n.bundle?.meta.layoutMode === 'flat' ? 'flat' : 'grouped'
+);
+
 /** True if any filter (search or tag) is active. */
 export const hasActiveFilter: Readable<boolean> = derived(
   [searchQuery, activeTagSlugs],
