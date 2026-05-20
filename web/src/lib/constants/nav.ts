@@ -8,7 +8,7 @@ export const siteList: ISite[] = [
   { name: '上海', value: 'shangHai' },
   { name: '北京', value: 'beiJing' },
   { name: '广州', value: 'guangZhou' },
-  { name: '深圳', value: 'shenZhen' },
+  { name: '深圳', value: 'shenZhen' }
 ];
 
 export const defaultSiteIndex = 0;
@@ -43,7 +43,7 @@ export const navList: INavItem[] = [
     link: {
       shangHai: 'http://10.0.0.3',
       beiJing: 'http://10.1.0.3',
-      guangZhou: 'http://10.2.0.3',
+      guangZhou: 'http://10.2.0.3'
     },
     source: 'esxi.png'
   },
@@ -52,7 +52,7 @@ export const navList: INavItem[] = [
     link: {
       shangHai: 'http://10.0.0.4',
       beiJing: 'http://10.1.0.4',
-      shenZhen: 'http://10.2.0.4',
+      shenZhen: 'http://10.2.0.4'
     },
     source: 'phicomm.png'
   },
@@ -159,5 +159,5 @@ export const navList: INavItem[] = [
       beiJing: 'http://10.1.0.13'
     },
     source: 'jackett.png'
-  },
-]
+  }
+];

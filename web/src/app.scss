@@ -12,7 +12,11 @@ body {
   --text-color: #fff;
   --text-hover-color: rgba(107, 19, 158, 0.4);
   --nav-item-bg-color: #fff;
-  --linear-gradient: linear-gradient(to right bottom,rgba(222,83,71, .6) 0%, rgba(75,138,244, .6) 100%);
+  --linear-gradient: linear-gradient(
+    to right bottom,
+    rgba(222, 83, 71, 0.6) 0%,
+    rgba(75, 138, 244, 0.6) 100%
+  );
 }
 
 #root {
@@ -23,22 +27,22 @@ body {
 }
 
 /******************************* scroll bar start ************************************/
-::-webkit-scrollbar{
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
   border-radius: 3px;
 }
-::-ms-scrollbar{
+::-ms-scrollbar {
   width: 6px;
   height: 6px;
   border-radius: 3px;
 }
-:-ms-scrollbar{
+:-ms-scrollbar {
   width: 6px;
   height: 6px;
   border-radius: 3px;
 }
-::-o-scrollbar{
+::-o-scrollbar {
   width: 6px;
   height: 6px;
   border-radius: 3px;
@@ -49,42 +53,52 @@ body {
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb{
+::-webkit-scrollbar-thumb {
   background: #a5b2e7;
   border-radius: 3px;
-  box-shadow: inset 2px 2px 2px rgba(255, 255, 255, 0.25), inset -2px -2px 2px rgba(0,0,0,.25);
+  box-shadow:
+    inset 2px 2px 2px rgba(255, 255, 255, 0.25),
+    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
 }
-::-ms-scrollbar-thumb{
+::-ms-scrollbar-thumb {
   background: #a5b2e7;
   border-radius: 3px;
-  box-shadow: inset 2px 2px 2px hsla(0,0%,100%,.25), inset -2px -2px 2px rgba(0,0,0,.25);
+  box-shadow:
+    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
+    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
 }
-:-ms-scrollbar-thumb{
+:-ms-scrollbar-thumb {
   background: #a5b2e7;
   border-radius: 3px;
-  box-shadow: inset 2px 2px 2px hsla(0,0%,100%,.25), inset -2px -2px 2px rgba(0,0,0,.25);
+  box-shadow:
+    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
+    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
 }
-::-o-scrollbar-thumb{
+::-o-scrollbar-thumb {
   background: #a5b2e7;
   border-radius: 3px;
-  box-shadow: inset 2px 2px 2px hsla(0,0%,100%,.25), inset -2px -2px 2px rgba(0,0,0,.25);
+  box-shadow:
+    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
+    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
 }
 ::scrollbar-thumb {
   background: #a5b2e7;
   border-radius: 3px;
-  box-shadow: inset 2px 2px 2px hsla(0,0%,100%,.25), inset -2px -2px 2px rgba(0,0,0,.25);
+  box-shadow:
+    inset 2px 2px 2px hsla(0, 0%, 100%, 0.25),
+    inset -2px -2px 2px rgba(0, 0, 0, 0.25);
 }
 
-::-webkit-scrollbar-track{
+::-webkit-scrollbar-track {
   background: transparent;
 }
-::-ms-scrollbar-track{
+::-ms-scrollbar-track {
   background: transparent;
 }
-:-ms-scrollbar-track{
+:-ms-scrollbar-track {
   background: transparent;
 }
-::-o-scrollbar-track{
+::-o-scrollbar-track {
   background: transparent;
 }
 ::scrollbar-track {

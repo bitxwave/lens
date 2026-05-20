@@ -1,1 +1,1 @@
-export const avatarURL = '/avatar.png'
+export const avatarURL = '/avatar.png';

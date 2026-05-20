@@ -11,3 +11,6 @@ node_modules
 pnpm-lock.yaml
 package-lock.json
 yarn.lock
+
+# TS syntax in .js extension — pending rename in Phase 1
+playwright.config.js

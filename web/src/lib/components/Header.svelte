@@ -49,7 +49,6 @@
   @media only screen and (max-width: 500px) {
     .header {
       &-logo {
-
         img {
           width: 36px;
           height: 36px;

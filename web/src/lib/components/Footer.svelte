@@ -14,7 +14,7 @@
     <div class="footer-link">
       <a href={siteICPBeianURL} target="_blank" rel="noopener">{siteICPBeian}</a>
     </div>
-    <div class="divider" />
+    <div class="divider"></div>
     <div class="footer-link">
       <a href={sitePoliceBeianURL} target="_blank" rel="noopener">{sitePoliceBeian}</a>
     </div>

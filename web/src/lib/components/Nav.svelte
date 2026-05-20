@@ -1,37 +1,21 @@
 <script lang="ts">
-  import { get } from 'svelte/store';
-  import { onDestroy } from 'svelte';
   import type { INavItem } from '$lib/constants/nav';
   import { isURL } from '$lib/utils/index';
   import { availableNavListStore, siteStore } from '$lib/store/siteStore';
 
-  let navList = get(availableNavListStore);
-  const unsubscribe = availableNavListStore.subscribe(($navList: INavItem[]) => {
-    navList = $navList;
-  });
-
-  onDestroy(() => {
-    unsubscribe();
-  });
-
-
-  const handleClick = (nav: INavItem) => {
-    const site = get(siteStore);
-    const link = nav?.link?.[site?.value || ''];
-    if(link) {
+  function handleClick(nav: INavItem) {
+    const link = nav?.link?.[$siteStore?.value || ''];
+    if (link) {
       window.open(link, '_blank', 'noreferrer,noreferrer');
     }
-  };
+  }
 </script>
 
 <div class="nav">
-  {#each navList as nav}
-    <div
-      class="nav-item"
-      on:click={() => {
-        handleClick(nav);
-      }}
-    >
+  {#each $availableNavListStore as nav}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="nav-item" onclick={() => handleClick(nav)}>
       <div class="nav-item-icon">
         <img src={isURL(nav.source) ? nav.source : `/navIcons/${nav.source}`} alt={nav.name} />
       </div>
