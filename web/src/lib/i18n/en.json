@@ -1,0 +1,30 @@
+{
+  "common.save": "Save",
+  "common.cancel": "Cancel",
+  "common.delete": "Delete",
+  "common.edit": "Edit",
+  "common.close": "Close",
+  "common.confirm": "Confirm",
+  "common.loading": "Loading…",
+
+  "header.search.placeholder": "Search… (press / to focus)",
+  "header.theme.toggle": "Toggle theme",
+  "header.locale.toggle": "Toggle language",
+  "header.login": "Log in",
+  "header.logout": "Log out",
+  "header.editMode.enter": "Edit",
+  "header.editMode.exit": "Exit edit",
+
+  "auth.login.title": "Sign in",
+  "auth.login.password": "Admin password",
+  "auth.login.submit": "Sign in",
+  "auth.login.error.bad_password": "Wrong password",
+  "auth.login.error.rate_limited": "Too many attempts, try again later",
+
+  "editor.item.deleteConfirm": "Delete \"{{name}}\"?",
+  "editor.item.new": "New nav item",
+
+  "error.network.offline": "Cannot reach server",
+  "error.network.retry": "Retry",
+  "error.unknown": "Unknown error"
+}

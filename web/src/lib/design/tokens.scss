@@ -1,0 +1,108 @@
+/* Modern minimal tokens — Linear / Raycast inspired.
+ * Light is :root default; data-theme="dark" overrides.
+ * Dark mode auto-applies via prefers-color-scheme unless user toggle set.
+ */
+
+:root {
+  /* Spacing — 4px base */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Radius */
+  --rd-sm: 6px;
+  --rd-md: 10px;
+  --rd-lg: 14px;
+  --rd-pill: 999px;
+
+  /* Type */
+  --ft-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --ft-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-tight: 1.2;
+  --lh-base: 1.5;
+  --lh-loose: 1.7;
+
+  /* Color (light) */
+  --c-bg: #fafaf9;
+  --c-surface: #ffffff;
+  --c-surface-2: #f4f4f3;
+  --c-border: #e5e5e3;
+  --c-text: #1a1a18;
+  --c-text-2: #5a5a55;
+  --c-text-3: #8a8a85;
+  --c-accent: #4f46e5;
+  --c-accent-hover: #4338ca;
+  --c-accent-bg: #eef2ff;
+  --c-success: #047857;
+  --c-warn: #b45309;
+  --c-danger: #b91c1c;
+  --c-danger-bg: #fef2f2;
+
+  /* Shadow (light) */
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
+
+  /* Motion */
+  --tr-fast: 120ms ease-out;
+  --tr-base: 180ms ease-out;
+  --tr-slow: 260ms ease-out;
+}
+
+[data-theme='dark'] {
+  --c-bg: #0e0e0d;
+  --c-surface: #18181a;
+  --c-surface-2: #232326;
+  --c-border: #2c2c30;
+  --c-text: #f5f5f3;
+  --c-text-2: #b5b5b0;
+  --c-text-3: #767672;
+  --c-accent: #818cf8;
+  --c-accent-hover: #a5b4fc;
+  --c-accent-bg: #1e1b4b;
+  --c-success: #10b981;
+  --c-warn: #f59e0b;
+  --c-danger: #f87171;
+  --c-danger-bg: #3f1d1d;
+
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --tr-fast: 0ms;
+    --tr-base: 0ms;
+    --tr-slow: 0ms;
+  }
+}
+
+/* App-level resets that depend on tokens */
+html,
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--ft-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--rd-sm);
+}
