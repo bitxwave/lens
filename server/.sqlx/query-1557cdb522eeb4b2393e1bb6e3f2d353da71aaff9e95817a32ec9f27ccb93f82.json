@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE sites SET sort_order=? WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "1557cdb522eeb4b2393e1bb6e3f2d353da71aaff9e95817a32ec9f27ccb93f82"
+}

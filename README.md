@@ -22,6 +22,14 @@ A static navigation website written in svelte3.
 
     ![H5 Site Switch](./snapshot_h5_site_switch.png)
 
+## Project layout
+
+- `web/` — SvelteKit SPA (`pnpm dev` / `pnpm build`)
+- `server/` — Rust backend (`cargo run`); see `server/README.md`
+- `docs/superpowers/` — design specs and implementation plans
+
+The production deploy is a single Docker image bundling both (Plan 5).
+
 ## Pre-install
 
 - [Install git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)

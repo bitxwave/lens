@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "siteName": "Navigation",
+    "siteAvatarPath": "/avatar.png",
+    "siteCopyright": "Copyright © 2026 — All rights reserved.",
+    "siteIcp":  null,
+    "sitePolice": null,
+    "defaultTheme": "system"
+  },
+  "sites": [
+    { "value": "shangHai", "name": "上海", "name_i18n": { "en": "Shanghai" }, "is_default": true,  "sort_order": 0 },
+    { "value": "beiJing",  "name": "北京", "name_i18n": { "en": "Beijing"  }, "is_default": false, "sort_order": 1 }
+  ],
+  "groups": [
+    { "slug": "network", "name": "网络", "name_i18n": { "en": "Network" }, "sort_order": 0 },
+    { "slug": "media",   "name": "媒体", "name_i18n": { "en": "Media"   }, "sort_order": 1 },
+    { "slug": "nas",     "name": "NAS",  "name_i18n": { "en": "NAS"     }, "sort_order": 2 },
+    { "slug": "tools",   "name": "工具", "name_i18n": { "en": "Tools"   }, "sort_order": 3 }
+  ],
+  "tags": [],
+  "items": []
+}

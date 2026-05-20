@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT il.item_id as \"item_id!: i64\", s.value as \"site_value!\", il.url as \"url!\"\n               FROM item_links il JOIN sites s ON s.id = il.site_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "item_id!: i64",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "site_value!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "url!",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0db0cdc73f5f3b0a724c13e3fa064ac52e99659718ad419812da54831f7a190a"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO items\n                (group_id, name, name_i18n, description, description_i18n,\n                 icon_kind, icon_value, sort_order, created_at, updated_at)\n               VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order)+1 FROM items WHERE group_id IS ?), 0), ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "4b84fda8f718e500a61e42b414b60ebb3a3200f5892644704aea628b45e81654"
+}

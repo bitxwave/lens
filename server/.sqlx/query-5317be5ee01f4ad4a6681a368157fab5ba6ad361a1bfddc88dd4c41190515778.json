@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE groups SET collapsed_default=? WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5317be5ee01f4ad4a6681a368157fab5ba6ad361a1bfddc88dd4c41190515778"
+}

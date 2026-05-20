@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE items SET sort_order=?, updated_at=? WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "563b6cfe1cde0eb0b2019903d8e879dd341f9eb8b27a92d6de7a05c028b7c6fe"
+}

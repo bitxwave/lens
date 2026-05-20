@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO item_links (item_id, site_id, url)\n                        SELECT ?, sites.id, ? FROM sites WHERE sites.value = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8d846a4e80eda9d30d2c18addbc8503678e4cf199514958e63d23c1ed3d484c5"
+}

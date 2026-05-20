@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT it.item_id as \"item_id!: i64\", t.slug as \"slug!\"\n               FROM item_tags it JOIN tags t ON t.id = it.tag_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "item_id!: i64",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "slug!",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ddf98d9fc5694bca2b491fbcc7da880a6cf46dba14d98b0a54f0c672600f5db6"
+}

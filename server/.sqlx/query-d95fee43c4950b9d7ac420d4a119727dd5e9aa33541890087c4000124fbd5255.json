@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sites (value, name, name_i18n, is_default) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "d95fee43c4950b9d7ac420d4a119727dd5e9aa33541890087c4000124fbd5255"
+}

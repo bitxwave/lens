@@ -1,19 +1,34 @@
+# OS
 .DS_Store
-node_modules
-/build
-/.svelte-kit
-/package
-.env
-.env.*
-!.env.example
-.vercel
-.output
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
-.yarn/*
-!.yarn/patches
-!.yarn/releases
-!.yarn/plugins
-!.yarn/sdks
-!.yarn/versions
-.pnp.*
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Frontend
+web/node_modules/
+web/.svelte-kit/
+web/build/
+web/.env
+web/.env.*
+!web/.env.example
+
+# Backend
+server/target/
+server/.env
+server/.env.*
+!server/.env.example
+server/dev-data/
+
+# Local volumes / runtime
+data/
+*.log
+*.pid
+
+# Worktrees (per ~/.claude/rules/worktree-location.md)
+.worktrees/
+
+# Tests
+test-results/
+playwright-report/

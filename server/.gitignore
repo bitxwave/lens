@@ -1,0 +1,6 @@
+target/
+dev-data/
+.env
+.env.*
+!.env.example
+*.log

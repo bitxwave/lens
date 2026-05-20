@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id!: i64\", group_id,\n                      name, name_i18n as \"name_i18n: serde_json::Value\",\n                      description, description_i18n as \"description_i18n: serde_json::Value\",\n                      icon_kind, icon_value,\n                      sort_order as \"sort_order!: i64\",\n                      created_at as \"created_at!: i64\",\n                      updated_at as \"updated_at!: i64\"\n               FROM items\n               ORDER BY group_id, sort_order, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "group_id",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "name_i18n: serde_json::Value",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "description_i18n: serde_json::Value",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "icon_kind",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "icon_value",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!: i64",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "updated_at!: i64",
+        "ordinal": 10,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5ad2f300b77f5983877f6e576d0c182cbe94a1f5d8b67e7c4179d08562ecf5bf"
+}
