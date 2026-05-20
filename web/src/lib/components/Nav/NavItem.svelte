@@ -2,16 +2,26 @@
   import type { Item } from '$lib/types/nav';
   import { uiPrefs } from '$lib/stores/uiPrefs';
   import { currentSite } from '$lib/stores/visible';
-  import { localeStore } from '$lib/i18n/store';
+  import { localeStore, t } from '$lib/i18n/store';
+  import { editModeStore } from '$lib/stores/editMode';
+  import NavItemContextMenu from '$lib/components/Editor/NavItemContextMenu.svelte';
+  import { navDataStore } from '$lib/stores/navData';
+  import { deleteItem } from '$lib/api/nav';
+  import { toast } from '$lib/components/ui/toast';
 
   interface Props {
     item: Item;
+    onEdit?: (item: Item) => void;
   }
-  let { item }: Props = $props();
+  let { item, onEdit }: Props = $props();
 
   const url = $derived($currentSite.site ? (item.links[$currentSite.site.value] ?? null) : null);
   const displayName = $derived(item.nameI18n?.[$localeStore] ?? item.name);
   const isFav = $derived($uiPrefs.favoriteItemIds.includes(item.id));
+
+  let menuOpen = $state(false);
+  let menuX = $state(0);
+  let menuY = $state(0);
 
   function iconSrc(): string {
     switch (item.iconKind) {
@@ -25,10 +35,12 @@
   }
 
   function open() {
+    if ($editModeStore) return; // suppress nav navigation in edit mode
     if (url) window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   function onKeydown(e: KeyboardEvent) {
+    if ($editModeStore) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       open();
@@ -39,16 +51,44 @@
     e.stopPropagation();
     uiPrefs.toggleFavorite(item.id);
   }
+
+  function onContextMenu(e: MouseEvent) {
+    if (!$editModeStore) return;
+    e.preventDefault();
+    menuX = e.clientX;
+    menuY = e.clientY;
+    menuOpen = true;
+  }
+
+  async function onConfirmDelete() {
+    // optimistic remove
+    const before = $navDataStore.bundle;
+    if (!before) return;
+    navDataStore.setBundle({
+      ...before,
+      items: before.items.filter((i) => i.id !== item.id)
+    });
+    try {
+      await deleteItem(item.id);
+      toast.success($t('common.delete') + ' ✓');
+    } catch {
+      // rollback
+      navDataStore.refetch();
+      toast.error($t('error.unknown'));
+    }
+  }
 </script>
 
-<div class="cell">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="cell" oncontextmenu={onContextMenu}>
   <button
     type="button"
     class="card"
+    class:edit={$editModeStore}
     onclick={open}
     onkeydown={onKeydown}
     aria-label={displayName}
-    disabled={!url}
+    disabled={!url && !$editModeStore}
   >
     <img class="icon" src={iconSrc()} alt="" loading="lazy" />
   </button>
@@ -61,6 +101,14 @@
   >
   <span class="label">{displayName}</span>
 </div>
+
+<NavItemContextMenu
+  bind:open={menuOpen}
+  x={menuX}
+  y={menuY}
+  onEdit={() => onEdit?.(item)}
+  onDelete={onConfirmDelete}
+/>
 
 <style lang="scss">
   .cell {
@@ -89,6 +137,10 @@
       transform: translateY(-2px);
       box-shadow: var(--sh-md);
       border-color: var(--c-accent);
+    }
+
+    &.edit {
+      cursor: context-menu;
     }
 
     &:disabled {

@@ -1,13 +1,19 @@
 <script lang="ts">
+  import type { Item } from '$lib/types/nav';
   import { visibleFavorites } from '$lib/stores/visible';
   import NavGrid from './NavGrid.svelte';
   import { t } from '$lib/i18n/store';
+
+  interface Props {
+    onEdit?: (item: Item) => void;
+  }
+  let { onEdit }: Props = $props();
 </script>
 
 {#if $visibleFavorites.length > 0}
   <section class="favorites">
     <h2 class="heading">★ {$t('nav.favorites.title')}</h2>
-    <NavGrid items={$visibleFavorites} />
+    <NavGrid items={$visibleFavorites} {onEdit} />
   </section>
 {/if}
 

@@ -1,13 +1,13 @@
 <script lang="ts">
   import Button from '$lib/components/ui/Button.svelte';
+  import LoginDialog from '$lib/components/Editor/LoginDialog.svelte';
+  import ChangePasswordDialog from '$lib/components/Editor/ChangePasswordDialog.svelte';
+  import EditToggle from './EditToggle.svelte';
   import { sessionStore } from '$lib/stores/session';
   import { t } from '$lib/i18n/store';
 
-  function onLoginClick() {
-    // Plan 4 will replace this with a LoginDialog open trigger.
-    // For now, show a placeholder toast or no-op so Plan 3 stays read-only.
-    alert($t('auth.login.title') + ' — coming in Plan 4');
-  }
+  let loginOpen = $state(false);
+  let pwOpen = $state(false);
 
   async function onLogout() {
     await sessionStore.logout();
@@ -15,7 +15,12 @@
 </script>
 
 {#if $sessionStore.authed}
+  <EditToggle />
+  <Button intent="ghost" size="sm" onclick={() => (pwOpen = true)}>🔑</Button>
   <Button intent="ghost" size="sm" onclick={onLogout}>{$t('header.logout')}</Button>
 {:else}
-  <Button intent="ghost" size="sm" onclick={onLoginClick}>{$t('header.login')}</Button>
+  <Button intent="ghost" size="sm" onclick={() => (loginOpen = true)}>{$t('header.login')}</Button>
 {/if}
+
+<LoginDialog bind:open={loginOpen} />
+<ChangePasswordDialog bind:open={pwOpen} />

@@ -4,13 +4,14 @@
 
   interface Props {
     items: Item[];
+    onEdit?: (item: Item) => void;
   }
-  let { items }: Props = $props();
+  let { items, onEdit }: Props = $props();
 </script>
 
 <div class="grid">
   {#each items as item (item.id)}
-    <NavItem {item} />
+    <NavItem {item} {onEdit} />
   {/each}
 </div>
 

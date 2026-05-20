@@ -1,13 +1,15 @@
 <script lang="ts">
   import type { VisibleGroup } from '$lib/stores/visible';
+  import type { Item } from '$lib/types/nav';
   import { uiPrefs } from '$lib/stores/uiPrefs';
   import GroupHeader from './GroupHeader.svelte';
   import NavGrid from './NavGrid.svelte';
 
   interface Props {
     section: VisibleGroup;
+    onEdit?: (item: Item) => void;
   }
-  let { section }: Props = $props();
+  let { section, onEdit }: Props = $props();
 
   const isOpen = $derived(section.group ? $uiPrefs.groupOpen[section.group.slug] !== false : true);
 </script>
@@ -17,7 +19,7 @@
     <GroupHeader group={section.group} />
   {/if}
   {#if isOpen}
-    <NavGrid items={section.items} />
+    <NavGrid items={section.items} {onEdit} />
   {/if}
 </section>
 
