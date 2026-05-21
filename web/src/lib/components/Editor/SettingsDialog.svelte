@@ -103,16 +103,21 @@
             bind:group={layoutMode}
             class="sr-only"
           />
-          <div class="mockup" aria-hidden="true">
-            <div class="hdr"></div>
-            <div class="row">
-              <span></span><span></span><span></span><span></span>
-            </div>
-            <div class="hdr"></div>
-            <div class="row">
-              <span></span><span></span><span></span>
-            </div>
-          </div>
+          <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
+            <!-- Group 1: bullet + title bar + 4 tiles -->
+            <circle class="bullet" cx="6" cy="7" r="2" />
+            <rect class="title" x="12" y="5" width="40" height="4" rx="1" />
+            <rect class="tile" x="4" y="14" width="9" height="9" rx="1.5" />
+            <rect class="tile" x="16" y="14" width="9" height="9" rx="1.5" />
+            <rect class="tile" x="28" y="14" width="9" height="9" rx="1.5" />
+            <rect class="tile" x="40" y="14" width="9" height="9" rx="1.5" />
+            <!-- Group 2: bullet + title bar + 3 tiles -->
+            <circle class="bullet" cx="6" cy="35" r="2" />
+            <rect class="title" x="12" y="33" width="30" height="4" rx="1" />
+            <rect class="tile" x="4" y="42" width="9" height="9" rx="1.5" />
+            <rect class="tile" x="16" y="42" width="9" height="9" rx="1.5" />
+            <rect class="tile" x="28" y="42" width="9" height="9" rx="1.5" />
+          </svg>
           <strong>Grouped</strong>
           <small>Sections per group</small>
         </label>
@@ -124,17 +129,14 @@
             bind:group={layoutMode}
             class="sr-only"
           />
-          <div class="mockup" aria-hidden="true">
-            <div class="row">
-              <span></span><span></span><span></span><span></span>
-            </div>
-            <div class="row">
-              <span></span><span></span><span></span><span></span>
-            </div>
-            <div class="row">
-              <span></span><span></span>
-            </div>
-          </div>
+          <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
+            <!-- 4 cols × 3 rows of even tiles -->
+            {#each [4, 16, 28, 40] as x}
+              {#each [6, 22, 38] as y}
+                <rect class="tile" {x} {y} width="9" height="9" rx="1.5" />
+              {/each}
+            {/each}
+          </svg>
           <strong>Flat</strong>
           <small>All items in one grid</small>
         </label>
@@ -233,13 +235,12 @@
     border: 0;
   }
 
-  /* Mini mockup of a nav layout. Heights / spacing tuned to fit the card. */
+  /* Mini SVG mockup of a nav layout. */
   .mockup {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 10px;
-    height: 96px;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 100 / 60;
     background: rgba(0, 0, 0, 0.04);
     border-radius: 6px;
     overflow: hidden;
@@ -247,33 +248,25 @@
   :global([data-theme='dark']) .mockup {
     background: rgba(255, 255, 255, 0.06);
   }
-  .mockup .hdr {
-    width: 38%;
-    height: 6px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 2px;
+  .mockup .bullet,
+  .mockup .title {
+    fill: rgba(0, 0, 0, 0.5);
   }
-  :global([data-theme='dark']) .mockup .hdr {
-    background: rgba(255, 255, 255, 0.4);
+  .mockup .tile {
+    fill: rgba(0, 0, 0, 0.18);
   }
-  .mockup .row {
-    display: flex;
-    gap: 4px;
+  :global([data-theme='dark']) .mockup .bullet,
+  :global([data-theme='dark']) .mockup .title {
+    fill: rgba(255, 255, 255, 0.55);
   }
-  .mockup .row span {
-    flex: 0 0 auto;
-    width: 12px;
-    height: 12px;
-    background: rgba(0, 0, 0, 0.18);
-    border-radius: 3px;
+  :global([data-theme='dark']) .mockup .tile {
+    fill: rgba(255, 255, 255, 0.22);
   }
-  :global([data-theme='dark']) .mockup .row span {
-    background: rgba(255, 255, 255, 0.22);
+  .layout-option.selected .mockup .bullet,
+  .layout-option.selected .mockup .title {
+    fill: var(--c-accent);
   }
-  .layout-option.selected .mockup .hdr {
-    background: var(--c-accent);
-  }
-  .layout-option.selected .mockup .row span {
-    background: color-mix(in srgb, var(--c-accent) 70%, transparent);
+  .layout-option.selected .mockup .tile {
+    fill: color-mix(in srgb, var(--c-accent) 70%, transparent);
   }
 </style>

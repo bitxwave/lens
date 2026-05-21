@@ -182,3 +182,65 @@ async fn reorder_items_writes_sort_order() {
     assert_eq!(items[0].id, b.id);
     assert_eq!(items[1].id, a.id);
 }
+
+/// Regression: previously `create_item` / `patch_item` did
+/// `INSERT INTO item_tags ... SELECT ... FROM tags WHERE slug = ?`,
+/// which silently dropped tags whose slug was not pre-registered.
+/// Now they upsert the tag first, so a fresh slug should round-trip.
+#[tokio::test]
+async fn create_item_auto_creates_unknown_tag_slugs() {
+    let (repo, gid, _sid) = make_repo_with_seed().await;
+    let mut links = std::collections::BTreeMap::new();
+    links.insert("shangHai".into(), "http://example".into());
+    let item = repo
+        .create_item(ItemPayload {
+            group_id: Some(gid),
+            name: "X".into(),
+            name_i18n: None,
+            description: None,
+            description_i18n: None,
+            icon_kind: IconKind::Asset,
+            icon_value: "x.png".into(),
+            links,
+            tag_slugs: vec!["fresh-slug".into(), "tools".into()],
+        })
+        .await
+        .unwrap();
+    assert_eq!(item.tag_slugs.len(), 2);
+    assert!(item.tag_slugs.contains(&"fresh-slug".into()));
+    assert!(item.tag_slugs.contains(&"tools".into()));
+    let (_, _, _, tags) = repo.get_bundle().await.unwrap();
+    assert!(tags.iter().any(|t| t.slug == "fresh-slug"));
+}
+
+#[tokio::test]
+async fn patch_item_auto_creates_unknown_tag_slugs() {
+    let (repo, gid, _sid) = make_repo_with_seed().await;
+    let mut links = std::collections::BTreeMap::new();
+    links.insert("shangHai".into(), "http://example".into());
+    let item = repo
+        .create_item(ItemPayload {
+            group_id: Some(gid),
+            name: "X".into(),
+            name_i18n: None,
+            description: None,
+            description_i18n: None,
+            icon_kind: IconKind::Asset,
+            icon_value: "x.png".into(),
+            links,
+            tag_slugs: vec![],
+        })
+        .await
+        .unwrap();
+    let updated = repo
+        .patch_item(
+            item.id,
+            ItemPatch {
+                tag_slugs: Some(vec!["brand-new".into()]),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated.tag_slugs, vec!["brand-new"]);
+}

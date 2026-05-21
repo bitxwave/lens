@@ -357,6 +357,13 @@ impl NavRepo for SqlxNavRepo {
 
         for slug in &p.tag_slugs {
             sqlx::query!(
+                "INSERT OR IGNORE INTO tags (slug, name) VALUES (?, ?)",
+                slug,
+                slug
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query!(
                 r#"INSERT INTO item_tags (item_id, tag_id)
                     SELECT ?, tags.id FROM tags WHERE tags.slug = ?"#,
                 id,
@@ -469,6 +476,13 @@ impl NavRepo for SqlxNavRepo {
                 .execute(&mut *tx)
                 .await?;
             for slug in tag_slugs {
+                sqlx::query!(
+                    "INSERT OR IGNORE INTO tags (slug, name) VALUES (?, ?)",
+                    slug,
+                    slug
+                )
+                .execute(&mut *tx)
+                .await?;
                 sqlx::query!(
                     r#"INSERT INTO item_tags (item_id, tag_id)
                         SELECT ?, tags.id FROM tags WHERE tags.slug = ?"#,
