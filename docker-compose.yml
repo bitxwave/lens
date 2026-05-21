@@ -1,4 +1,5 @@
-# docker-compose.yml — sample. Adjust DOMAIN / image tag for your deploy.
+# docker-compose.yml — single-service self-host (intranet / no TLS).
+# Override the listening port with `PORT=9090 docker compose up -d`.
 services:
   nav:
     build: .
@@ -6,28 +7,11 @@ services:
     container_name: nav
     restart: unless-stopped
     environment:
+      PORT: ${PORT:-8080}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       RUST_LOG: ${RUST_LOG:-info,sqlx=warn,tower_http=info}
-      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
     volumes:
       - ./data:/app/data
-    expose:
-      - "8080"
-
-  caddy:
-    image: caddy:2
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - nav
-
-volumes:
-  caddy-data:
-  caddy-config:

@@ -3,6 +3,11 @@
 A self-hostable navigation/bookmark dashboard with a Rust backend (Axum + SQLite),
 a SvelteKit SPA frontend, and an inline editor for the admin.
 
+The Rust binary serves both the JSON API (`/api/*`) and the SvelteKit SPA static
+assets in a single process — no separate web server or reverse proxy required.
+Designed for intranet self-hosting; expose via your network's existing TLS
+terminator if needed.
+
 ## Quickstart (Docker)
 
 ```bash
@@ -17,8 +22,7 @@ docker run -d \
 Visit http://localhost:8080. Click **Log in** in the top-right, enter your password,
 then click **Edit** to add/remove nav items inline.
 
-For HTTPS with Let's Encrypt, use `docker compose up -d` with the bundled
-`docker-compose.yml` (set `DOMAIN=nav.example.com`).
+See [Deployment](#deployment) for compose, custom port, and data persistence options.
 
 ## Project layout
 
@@ -30,7 +34,7 @@ For HTTPS with Let's Encrypt, use `docker compose up -d` with the bundled
 | `scripts/` | `docker-smoke.sh`, `e2e.sh`, `dump-bootstrap.mjs`. |
 | `docs/superpowers/` | Design specs and implementation plans. |
 | `Dockerfile` | Multi-stage build → distroless single image. |
-| `docker-compose.yml` + `Caddyfile` | Optional TLS-fronted deploy. |
+| `docker-compose.yml` | Sample single-service compose for intranet self-host. |
 
 ## Local development
 
@@ -66,6 +70,95 @@ Run e2e (requires Docker):
 bash scripts/e2e.sh
 ```
 
+## Build
+
+### Frontend (SvelteKit SPA)
+
+```bash
+cd web
+pnpm install
+pnpm build           # outputs to web/build (static assets)
+```
+
+### Backend (Rust release binary)
+
+```bash
+cd server
+SQLX_OFFLINE=true cargo build --release --bin navsrv
+# binary at server/target/release/navsrv
+```
+
+Run it with the SPA build directly (no Docker):
+
+```bash
+cd server
+STATIC_DIR=../web/build DATA_DIR=./prod-data \
+  ./target/release/navsrv
+```
+
+### Docker image
+
+```bash
+docker build -t navsrv:latest .
+```
+
+The multi-stage `Dockerfile`:
+1. builds the SPA with `node:20-alpine` + pnpm,
+2. builds the Rust binary with `rust:1.88-slim` (uses `SQLX_OFFLINE=true` against
+   the committed `server/.sqlx/` cache),
+3. assembles a distroless `gcr.io/distroless/cc-debian12` runtime (~70 MB) with
+   the binary at `/usr/local/bin/navsrv` and SPA assets at `/app/static`.
+
+Smoke-test the freshly built image:
+
+```bash
+bash scripts/docker-smoke.sh
+```
+
+## Deployment
+
+Single-process, single-port. Mount one volume for the SQLite DB + uploaded icons.
+
+### docker compose (recommended)
+
+```bash
+PORT=8080 BOOTSTRAP_ADMIN_PASSWORD=changeme docker compose up -d
+```
+
+`docker-compose.yml` publishes `${PORT}:${PORT}` and bind-mounts `./data` to
+`/app/data`. To switch ports later, change `PORT` and `up -d` again — both the
+host mapping and the container's listening port follow the same variable.
+
+### docker run
+
+```bash
+docker run -d --name nav \
+  -e PORT=9090 -p 9090:9090 \
+  -v ./data:/app/data \
+  -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
+  navsrv:latest
+```
+
+If you keep the default `PORT=8080` baked into the image, just publish
+`-p <host>:8080`.
+
+### Data persistence
+
+Everything stateful lives under `DATA_DIR` (defaults to `/app/data` in Docker):
+
+- `data.db` — SQLite (WAL); contains nav items, sites, groups, admin password hash
+- `icons/` — proxied/uploaded favicon cache (7-day TTL refresh)
+- `INITIAL_PASSWORD.txt` — generated on first boot if `BOOTSTRAP_ADMIN_PASSWORD`
+  is unset; auto-deleted after the first password change via the UI
+
+Back up the volume to back up the whole instance.
+
+### Behind a reverse proxy (optional)
+
+For HTTPS or path prefixing, front `navsrv` with any reverse proxy (Caddy,
+nginx, Traefik, Cloudflare Tunnel, Tailscale Funnel...). When TLS is terminated
+upstream, set `SECURE_COOKIES=true` so session cookies are marked `Secure`.
+
 ## Configuration (env)
 
 | Var | Default | Notes |
@@ -74,7 +167,7 @@ bash scripts/e2e.sh
 | `DATA_DIR` | `/app/data` (Docker) / `./dev-data` (cargo) | SQLite + uploads + INITIAL_PASSWORD |
 | `STATIC_DIR` | `/app/static` (Docker) / `../web/build` (cargo) | SvelteKit build output |
 | `BOOTSTRAP_ADMIN_PASSWORD` | (unset) | First boot only; otherwise random + file |
-| `SECURE_COOKIES` | `false` (dev) / `true` (compose) | `true` requires HTTPS |
+| `SECURE_COOKIES` | `false` | Set `true` only when serving over HTTPS |
 | `RUST_LOG` | `info,sqlx=warn,tower_http=info` | tracing-subscriber filter |
 
 ## Resetting the admin password
