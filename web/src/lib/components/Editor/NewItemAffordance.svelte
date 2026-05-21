@@ -13,31 +13,44 @@
 
 <style lang="scss">
   .aff {
-    display: inline-flex;
+    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: var(--sp-2);
-    width: 96px;
-    min-height: 96px;
-    margin: 0 auto var(--sp-7);
-    background: transparent;
-    border: 2px dashed var(--c-border);
-    border-radius: var(--rd-lg);
-    color: var(--c-text-3);
+    width: 120px;
+    height: 120px;
+    background: rgba(255, 255, 255, 0.35);
+    border: 2px dashed rgba(255, 255, 255, 0.7);
+    border-radius: 22px;
+    color: rgba(0, 0, 0, 0.5);
     cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     transition:
       border-color var(--tr-fast),
       color var(--tr-fast),
       background var(--tr-fast);
     &:hover {
-      border-color: var(--c-accent);
-      color: var(--c-accent);
-      background: var(--c-accent-bg);
+      border-color: #fff;
+      color: rgba(0, 0, 0, 0.85);
+      background: rgba(255, 255, 255, 0.55);
+    }
+  }
+  :global([data-theme='dark']) .aff {
+    background: rgba(20, 16, 28, 0.4);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.65);
+
+    &:hover {
+      border-color: rgba(255, 255, 255, 0.55);
+      color: #fff;
+      background: rgba(20, 16, 28, 0.6);
     }
   }
   .plus {
-    font-size: 28px;
+    font-size: 32px;
+    font-weight: 300;
     line-height: 1;
   }
   .lbl {

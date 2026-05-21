@@ -31,19 +31,19 @@
     background: transparent;
     border: 0;
     cursor: pointer;
-    color: var(--c-text);
+    color: var(--c-section-heading);
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
     border-radius: var(--rd-md);
 
     &:hover {
-      background: var(--c-surface-2);
+      background: rgba(255, 255, 255, 0.12);
     }
   }
   .chev {
     display: inline-block;
     transition: transform var(--tr-fast);
-    color: var(--c-text-3);
+    color: var(--c-section-heading);
 
     &.open {
       transform: rotate(90deg);

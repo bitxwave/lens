@@ -8,31 +8,35 @@
 </script>
 
 <footer class="footer">
-  <div class="row">
-    <span class="copyright">{meta?.siteCopyright ?? ''}</span>
-    {#if showFilings && meta?.siteIcp}
-      <span class="sep">·</span>
-      <a href={meta.siteIcp.url} target="_blank" rel="noopener">{meta.siteIcp.text}</a>
-    {/if}
-    {#if showFilings && meta?.sitePolice}
-      <span class="sep">·</span>
-      <a href={meta.sitePolice.url} target="_blank" rel="noopener">{meta.sitePolice.text}</a>
-    {/if}
+  <div class="inner">
+    <div class="row">
+      <span class="copyright">{meta?.siteCopyright ?? ''}</span>
+      {#if showFilings && meta?.siteIcp}
+        <span class="sep">·</span>
+        <a href={meta.siteIcp.url} target="_blank" rel="noopener">{meta.siteIcp.text}</a>
+      {/if}
+      {#if showFilings && meta?.sitePolice}
+        <span class="sep">·</span>
+        <a href={meta.sitePolice.url} target="_blank" rel="noopener">{meta.sitePolice.text}</a>
+      {/if}
+    </div>
   </div>
 </footer>
 
 <style lang="scss">
   .footer {
+    /* Transparent — footer copy floats over the page gradient with no
+     * separator bar, so the gradient feels continuous from top to bottom.
+     * No margin-top: main owns the surrounding padding via its own padding-block.
+     */
+    color: rgba(255, 255, 255, 0.88);
+    font-size: var(--fs-xs);
+  }
+  .inner {
+    width: 100%;
+    padding: var(--sp-5) var(--sp-4);
     display: flex;
     justify-content: center;
-    padding: var(--sp-5) var(--sp-4);
-    margin-top: var(--sp-8);
-    background: color-mix(in srgb, var(--c-surface) 75%, transparent);
-    backdrop-filter: blur(12px) saturate(140%);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
-    border-top: 1px solid color-mix(in srgb, var(--c-border) 60%, transparent);
-    color: var(--c-text-3);
-    font-size: var(--fs-xs);
   }
   .row {
     display: inline-flex;
@@ -50,7 +54,7 @@
     text-underline-offset: 3px;
 
     &:hover {
-      color: var(--c-text-2);
+      color: #fff;
     }
   }
 </style>

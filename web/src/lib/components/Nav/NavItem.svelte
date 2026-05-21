@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Item } from '$lib/types/nav';
   import { uiPrefs } from '$lib/stores/uiPrefs';
-  import { currentSite } from '$lib/stores/visible';
+  import { currentSite, layoutMode } from '$lib/stores/visible';
   import { localeStore, t } from '$lib/i18n/store';
   import { editModeStore } from '$lib/stores/editMode';
   import NavItemContextMenu from '$lib/components/Editor/NavItemContextMenu.svelte';
@@ -92,14 +92,39 @@
   >
     <img class="icon" src={iconSrc()} alt="" loading="lazy" />
   </button>
-  {#if !$editModeStore}
+  {#if !$editModeStore && $layoutMode !== 'flat'}
     <button
       type="button"
       class="fav"
       aria-label={isFav ? 'Unfavorite' : 'Favorite'}
       aria-pressed={isFav}
-      onclick={onFavClick}>★</button
+      onclick={onFavClick}
     >
+      {#if isFav}
+        <!-- Filled star -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+          />
+        </svg>
+      {:else}
+        <!-- Outline star -->
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path
+            d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+          />
+        </svg>
+      {/if}
+    </button>
   {/if}
   <span class="label">{displayName}</span>
 </div>
@@ -113,32 +138,49 @@
 />
 
 <style lang="scss">
+  @keyframes shake-bounce {
+    0%,
+    100% {
+      transform: rotate(0);
+    }
+    25% {
+      transform: rotate(10deg);
+    }
+    50% {
+      transform: rotate(-10deg);
+    }
+    75% {
+      transform: rotate(4deg);
+    }
+    85% {
+      transform: rotate(-4deg);
+    }
+  }
+
   .cell {
     position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--sp-2);
-    width: 96px;
+    gap: var(--sp-3);
+    width: 120px;
   }
   .card {
-    width: 96px;
-    height: 96px;
-    padding: var(--sp-3);
+    width: 120px;
+    height: 120px;
+    padding: 14px;
     background: var(--c-surface);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-lg);
-    box-shadow: var(--sh-sm);
+    border: 0;
+    border-radius: 22px;
+    box-shadow: var(--sh-card);
     cursor: pointer;
     transition:
-      transform var(--tr-base),
       box-shadow var(--tr-base),
-      border-color var(--tr-fast);
+      transform var(--tr-base);
 
     &:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: var(--sh-md);
-      border-color: var(--c-accent);
+      box-shadow: var(--sh-card-hover);
+      animation: shake-bounce 0.55s ease-in-out;
     }
 
     &.edit {
@@ -154,42 +196,78 @@
       width: 100%;
       height: 100%;
       object-fit: contain;
-      border-radius: var(--rd-sm);
+      border-radius: 12px;
     }
   }
+  /* Favorite star — hidden by default; appears on cell hover OR keyboard focus.
+   * No background chip, no scale: just an outline/filled SVG star whose color
+   * tells the state. Already-favorited stays visible while hovering anywhere
+   * else by virtue of its color (handled by the {#if isFav} branch in markup
+   * picking the filled glyph). */
   .fav {
     position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 22px;
-    height: 22px;
+    top: 4px;
+    right: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
     background: transparent;
     border: 0;
-    color: var(--c-text-3);
-    font-size: 14px;
-    line-height: 1;
     cursor: pointer;
-    border-radius: var(--rd-pill);
+    color: rgba(0, 0, 0, 0.5);
     opacity: 0;
+    pointer-events: none;
     transition:
       opacity var(--tr-fast),
       color var(--tr-fast);
 
     &[aria-pressed='true'] {
-      color: var(--c-warn);
-      opacity: 1;
+      color: #f5a623;
     }
   }
   .cell:hover .fav,
   .fav:focus-visible {
     opacity: 1;
+    pointer-events: auto;
+  }
+  .fav:hover:not([aria-pressed='true']) {
+    color: rgba(0, 0, 0, 0.8);
+  }
+  .fav[aria-pressed='true']:hover {
+    color: #d68410;
   }
 
   .label {
-    font-size: var(--fs-sm);
-    color: var(--c-text);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--c-card-label);
+    text-shadow: var(--sh-card-label);
     text-align: center;
     line-height: var(--lh-tight);
     word-break: break-word;
+  }
+
+  @media (max-width: 500px) {
+    .cell {
+      width: 72px;
+      gap: var(--sp-2);
+    }
+    .card {
+      width: 72px;
+      height: 72px;
+      padding: 10px;
+      border-radius: 16px;
+
+      .icon {
+        border-radius: 8px;
+      }
+    }
+    .label {
+      font-size: var(--fs-xs);
+    }
   }
 </style>

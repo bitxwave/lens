@@ -7,8 +7,10 @@
     hasActiveFilter,
     clearFilters
   } from '$lib/stores/visible';
-  import GroupSection from '$lib/components/Nav/GroupSection.svelte';
   import NavGrid from '$lib/components/Nav/NavGrid.svelte';
+  import GroupFolder from '$lib/components/Nav/GroupFolder.svelte';
+  import GroupFolderModal from '$lib/components/Nav/GroupFolderModal.svelte';
+  import NavItem from '$lib/components/Nav/NavItem.svelte';
   import FavoritesSection from '$lib/components/Nav/FavoritesSection.svelte';
   import EmptyState from '$lib/components/Nav/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -25,6 +27,15 @@
   let createForGroupId = $state<number | null>(null);
   let editDialogOpen = $state(false);
 
+  /** Currently expanded folder (grouped + Launchpad mode). null = none. */
+  let openFolderId = $state<number | null>(null);
+
+  const openFolder = $derived(
+    openFolderId == null
+      ? null
+      : ($visibleSections.find((s) => s.group?.id === openFolderId) ?? null)
+  );
+
   function openEdit(item: Item) {
     editTarget = item;
     createForGroupId = null;
@@ -35,6 +46,9 @@
     createForGroupId = groupId;
     editDialogOpen = true;
   }
+
+  /** When grouped + filtering, flatten matched items so search bypasses folders. */
+  const filteredFlatItems = $derived($visibleSections.flatMap((s) => s.items));
 </script>
 
 <svelte:head>
@@ -53,7 +67,9 @@
     <Button onclick={() => navDataStore.refetch()}>{$t('error.network.retry')}</Button>
   </div>
 {:else}
-  <FavoritesSection onEdit={openEdit} />
+  {#if !$hasActiveFilter && $layoutMode === 'grouped'}
+    <FavoritesSection onEdit={openEdit} />
+  {/if}
   {#if $visibleSections.length === 0}
     {#if $hasActiveFilter}
       <EmptyState title={$t('nav.empty.search')} hint={$t('nav.empty.search.hint')} />
@@ -70,19 +86,50 @@
     {/if}
   {:else if $layoutMode === 'flat'}
     <section class="flat">
-      <NavGrid items={$visibleFlatItems} groupId={null} onEdit={openEdit} />
-      {#if $editModeStore}
-        <NewItemAffordance onClick={() => openCreate(null)} />
-      {/if}
+      <NavGrid items={$visibleFlatItems} groupId={null} onEdit={openEdit}>
+        {#snippet trailing()}
+          {#if $editModeStore}
+            <NewItemAffordance onClick={() => openCreate(null)} />
+          {/if}
+        {/snippet}
+      </NavGrid>
+    </section>
+  {:else if $hasActiveFilter}
+    <!-- Search active: bypass folders, show matching items flat. -->
+    <section class="flat">
+      <NavGrid items={filteredFlatItems} groupId={null} onEdit={openEdit} />
     </section>
   {:else}
-    {#each $visibleSections as section (section.group?.id ?? 'ungrouped')}
-      <GroupSection {section} onEdit={openEdit} />
-      {#if $editModeStore}
-        <NewItemAffordance onClick={() => openCreate(section.group?.id ?? null)} />
-      {/if}
-    {/each}
+    <!-- Launchpad-style folder grid: each group is a tile that expands on click. -->
+    <section class="folders">
+      <div class="folders-grid">
+        {#each $visibleSections as section (section.group?.id ?? 'ungrouped')}
+          {#if section.group}
+            <GroupFolder
+              group={section.group}
+              items={section.items}
+              onOpen={() => (openFolderId = section.group!.id)}
+            />
+          {:else}
+            <!-- Ungrouped items render inline as plain tiles, no folder. -->
+            {#each section.items as item (item.id)}
+              <NavItem {item} onEdit={openEdit} />
+            {/each}
+          {/if}
+        {/each}
+      </div>
+    </section>
   {/if}
+{/if}
+
+{#if openFolder?.group}
+  <GroupFolderModal
+    group={openFolder.group}
+    items={openFolder.items}
+    onClose={() => (openFolderId = null)}
+    onEdit={openEdit}
+    onCreate={() => openCreate(openFolder.group!.id)}
+  />
 {/if}
 
 <ItemEditDialog bind:open={editDialogOpen} target={editTarget} defaultGroupId={createForGroupId} />
@@ -100,7 +147,19 @@
     justify-content: center;
     margin-top: var(--sp-3);
   }
-  .flat {
-    margin-bottom: var(--sp-7);
+  /* Folder grid uses the same column / gap as NavGrid so folders and items
+   * render at consistent sizes regardless of which mode the user is in. */
+  .folders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 120px);
+    gap: 36px 28px;
+    justify-content: center;
+    width: 100%;
+  }
+  @media (max-width: 500px) {
+    .folders-grid {
+      grid-template-columns: repeat(auto-fill, 72px);
+      gap: 24px 16px;
+    }
   }
 </style>

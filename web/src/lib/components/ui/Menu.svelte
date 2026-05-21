@@ -88,16 +88,29 @@
 {/if}
 
 <style lang="scss">
+  /* Frosted glass dropdown — matches SearchBar / cards aesthetic so the menu
+   * doesn't feel like a hard white panel pasted onto the gradient. */
   .menu {
     position: fixed;
-    background: var(--c-surface);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-md);
-    box-shadow: var(--sh-md);
-    padding: var(--sp-1);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: var(--rd-lg);
+    box-shadow:
+      0 10px 30px rgba(35, 25, 60, 0.18),
+      0 2px 6px rgba(35, 25, 60, 0.1);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    padding: var(--sp-2);
     min-width: 180px;
     z-index: 1200;
     outline: none;
+  }
+  :global([data-theme='dark']) .menu {
+    background: rgba(20, 16, 28, 0.78);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.4);
   }
 
   .item {
@@ -106,11 +119,15 @@
     text-align: left;
     padding: var(--sp-2) var(--sp-3);
     border: 0;
-    border-radius: var(--rd-sm);
+    border-radius: var(--rd-md);
     background: transparent;
     color: var(--c-text);
     font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
     cursor: pointer;
+    transition:
+      background var(--tr-fast),
+      color var(--tr-fast);
 
     &:disabled {
       color: var(--c-text-3);
@@ -118,13 +135,16 @@
     }
 
     &.focused:not(:disabled) {
-      background: var(--c-accent-bg);
-      color: var(--c-accent);
+      background: rgba(0, 0, 0, 0.07);
+      color: var(--c-text);
     }
 
     &.intent-danger:not(:disabled).focused {
-      background: var(--c-danger-bg);
+      background: rgba(185, 28, 28, 0.12);
       color: var(--c-danger);
     }
+  }
+  :global([data-theme='dark']) .item.focused:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
   }
 </style>

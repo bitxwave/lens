@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -8,6 +9,22 @@
   import { toast } from '$lib/components/ui/toast';
   import { ApiError } from '$lib/api/client';
   import type { Item } from '$lib/types/nav';
+
+  /** List of bundled asset filenames, fetched lazily on first open.
+   * Generated at build/dev time by vite plugin in vite.config.ts. */
+  let assetIcons = $state<string[]>([]);
+  let assetIconsLoaded = false;
+  async function loadAssetIcons() {
+    if (assetIconsLoaded) return;
+    assetIconsLoaded = true;
+    try {
+      const res = await fetch('/navIcons-manifest.json');
+      if (res.ok) assetIcons = (await res.json()) as string[];
+    } catch {
+      /* manifest may be missing in some build flavors; picker just shows empty */
+    }
+  }
+  onMount(loadAssetIcons);
 
   interface Props {
     open: boolean;
@@ -24,44 +41,62 @@
   let groupId = $state<number | null>(null);
   let iconKind = $state<'asset' | 'url' | 'auto-favicon'>('asset');
   let iconValue = $state('');
-  let linksJson = $state('{}'); // simplified MVP: edit links as JSON
+  /** Each row = (site value, url). Empty rows are dropped on submit. */
+  let linkRows = $state<Array<{ siteValue: string; url: string }>>([]);
   let tagSlugsCsv = $state(''); // simplified: comma-separated
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
+  let hydrated = $state(false);
   $effect(() => {
-    // sync form when target / open changes
-    if (!open) return;
-    if (target) {
-      name = target.name;
-      groupId = target.groupId;
-      iconKind = target.iconKind;
-      iconValue = target.iconValue;
-      linksJson = JSON.stringify(target.links, null, 2);
-      tagSlugsCsv = target.tagSlugs.join(', ');
-    } else {
-      name = '';
-      groupId = defaultGroupId;
-      iconKind = 'asset';
-      iconValue = '';
-      linksJson = '{}';
-      tagSlugsCsv = '';
+    if (open && !hydrated) {
+      if (target) {
+        name = target.name;
+        groupId = target.groupId;
+        iconKind = target.iconKind;
+        iconValue = target.iconValue;
+        linkRows = Object.entries(target.links).map(([siteValue, url]) => ({ siteValue, url }));
+        tagSlugsCsv = target.tagSlugs.join(', ');
+      } else {
+        name = '';
+        groupId = defaultGroupId;
+        iconKind = 'asset';
+        iconValue = '';
+        const firstSite = $navDataStore.bundle?.sites[0]?.value ?? '';
+        linkRows = firstSite ? [{ siteValue: firstSite, url: '' }] : [];
+        tagSlugsCsv = '';
+      }
+      error = null;
+      hydrated = true;
+    } else if (!open) {
+      hydrated = false;
     }
-    error = null;
   });
 
-  function parseLinks(): Record<string, string> {
-    try {
-      const parsed = JSON.parse(linksJson) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return Object.fromEntries(
-          Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, String(v)])
-        );
-      }
-    } catch {
-      /* fallthrough to error */
+  const siteOptions = $derived($navDataStore.bundle?.sites ?? []);
+
+  function siteLabelFor(value: string): string {
+    return siteOptions.find((s) => s.value === value)?.name ?? value;
+  }
+
+  function addLinkRow() {
+    const taken = new Set(linkRows.map((r) => r.siteValue));
+    const next = siteOptions.find((s) => !taken.has(s.value))?.value ?? siteOptions[0]?.value ?? '';
+    linkRows = [...linkRows, { siteValue: next, url: '' }];
+  }
+
+  function removeLinkRow(i: number) {
+    linkRows = linkRows.filter((_, idx) => idx !== i);
+  }
+
+  function buildLinks(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const row of linkRows) {
+      const url = row.url.trim();
+      if (!url || !row.siteValue) continue;
+      out[row.siteValue] = url;
     }
-    throw new Error('links must be a JSON object: { "siteValue": "url", ... }');
+    return out;
   }
 
   async function submit() {
@@ -69,7 +104,10 @@
     error = null;
     submitting = true;
     try {
-      const links = parseLinks();
+      const links = buildLinks();
+      if (Object.keys(links).length === 0) {
+        throw new Error('At least one link is required.');
+      }
       const payload: ItemPayload = {
         groupId,
         name: name.trim(),
@@ -115,22 +153,76 @@
       </select>
     </label>
     <label class="grp">
-      <span class="lbl">Icon kind</span>
+      <span class="lbl">Icon source</span>
       <select bind:value={iconKind}>
-        <option value="asset">asset (file under /navIcons/)</option>
-        <option value="url">url (full URL)</option>
-        <option value="auto-favicon">auto-favicon (host)</option>
+        <option value="asset">Pick a bundled icon</option>
+        <option value="url">Custom image URL</option>
+        <option value="auto-favicon">Auto from website (host)</option>
       </select>
     </label>
-    <Input
-      label="Icon value"
-      bind:value={iconValue}
-      placeholder="example.png / https://… / example.com"
-    />
-    <label class="grp">
-      <span class="lbl">Links (JSON: siteValue → URL)</span>
-      <textarea rows="4" bind:value={linksJson}></textarea>
-    </label>
+    {#if iconKind === 'asset'}
+      <div class="grp">
+        <span class="lbl">
+          Bundled icons {#if assetIcons.length}({assetIcons.length}){/if}
+        </span>
+        <div class="icon-picker">
+          {#each assetIcons as f (f)}
+            <button
+              type="button"
+              class="icon-cell"
+              class:selected={iconValue === f}
+              title={f}
+              onclick={() => (iconValue = f)}
+            >
+              <img src="/navIcons/{f}" alt={f} loading="lazy" />
+            </button>
+          {/each}
+        </div>
+        {#if iconValue}
+          <span class="picked">Selected: <code>{iconValue}</code></span>
+        {/if}
+      </div>
+    {:else}
+      <Input
+        label={iconKind === 'url' ? 'Image URL' : 'Website host (e.g. example.com)'}
+        bind:value={iconValue}
+        placeholder={iconKind === 'url' ? 'https://example.com/logo.png' : 'example.com'}
+      />
+    {/if}
+    <div class="grp">
+      <span class="lbl">Links per site</span>
+      <div class="links">
+        {#each linkRows as row, i (i)}
+          <div class="link-row">
+            <select bind:value={row.siteValue} aria-label="Site">
+              {#each siteOptions as s (s.value)}
+                <option value={s.value}>{siteLabelFor(s.value)}</option>
+              {/each}
+            </select>
+            <input
+              type="url"
+              placeholder="https://…"
+              bind:value={row.url}
+              aria-label="URL for {siteLabelFor(row.siteValue)}"
+            />
+            <button
+              type="button"
+              class="remove"
+              aria-label="Remove link"
+              onclick={() => removeLinkRow(i)}>×</button
+            >
+          </div>
+        {/each}
+        <button
+          type="button"
+          class="add"
+          onclick={addLinkRow}
+          disabled={linkRows.length >= siteOptions.length}
+        >
+          ＋ Add link
+        </button>
+      </div>
+    </div>
     <Input label="Tag slugs (comma-separated)" bind:value={tagSlugsCsv} placeholder="fav, tools" />
     {#if error}<p class="err">{error}</p>{/if}
   </div>
@@ -158,8 +250,7 @@
     color: var(--c-text-2);
     font-weight: var(--fw-medium);
   }
-  select,
-  textarea {
+  select {
     background: var(--c-surface);
     color: var(--c-text);
     border: 1px solid var(--c-border);
@@ -173,13 +264,132 @@
       box-shadow: 0 0 0 3px var(--c-accent-bg);
     }
   }
-  textarea {
-    font-family: var(--ft-mono);
-    font-size: var(--fs-sm);
-  }
   .err {
     margin: 0;
     color: var(--c-danger);
     font-size: var(--fs-sm);
+  }
+
+  /* Bundled-icon grid: small clickable thumbnails. */
+  .icon-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 56px);
+    gap: var(--sp-2);
+    max-height: 220px;
+    overflow-y: auto;
+    padding: var(--sp-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--rd-md);
+    background: rgba(255, 255, 255, 0.4);
+  }
+  :global([data-theme='dark']) .icon-picker {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .icon-cell {
+    width: 56px;
+    height: 56px;
+    padding: 6px;
+    border: 2px solid transparent;
+    background: rgba(255, 255, 255, 0.65);
+    border-radius: var(--rd-md);
+    cursor: pointer;
+    transition:
+      border-color var(--tr-fast),
+      transform var(--tr-fast);
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+      border-color: var(--c-accent);
+    }
+    &.selected {
+      border-color: var(--c-accent);
+      background: var(--c-accent-bg);
+    }
+  }
+  .picked {
+    font-size: var(--fs-xs);
+    color: var(--c-text-3);
+
+    code {
+      font-family: var(--ft-mono);
+      color: var(--c-text-2);
+    }
+  }
+
+  /* Per-site link rows: site picker | url input | remove */
+  .links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .link-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.4fr) 1fr auto;
+    gap: var(--sp-2);
+    align-items: stretch;
+  }
+  .link-row select,
+  .link-row input {
+    min-width: 0;
+  }
+  .link-row input[type='url'] {
+    background: var(--c-surface);
+    color: var(--c-text);
+    border: 1px solid var(--c-border);
+    border-radius: var(--rd-md);
+    padding: var(--sp-2) var(--sp-3);
+    font-family: inherit;
+    font-size: var(--fs-md);
+    &:focus {
+      border-color: var(--c-accent);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--c-accent-bg);
+    }
+  }
+  .remove {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--c-border);
+    background: transparent;
+    color: var(--c-text-3);
+    border-radius: var(--rd-md);
+    font-size: var(--fs-lg);
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      color var(--tr-fast),
+      border-color var(--tr-fast),
+      background var(--tr-fast);
+    &:hover {
+      color: var(--c-danger);
+      border-color: var(--c-danger);
+      background: var(--c-danger-bg);
+    }
+  }
+  .add {
+    align-self: flex-start;
+    padding: var(--sp-2) var(--sp-3);
+    background: transparent;
+    color: var(--c-accent);
+    border: 1px dashed var(--c-accent);
+    border-radius: var(--rd-md);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+    transition: background var(--tr-fast);
+    &:hover:not(:disabled) {
+      background: var(--c-accent-bg);
+    }
+    &:disabled {
+      color: var(--c-text-3);
+      border-color: var(--c-border);
+      cursor: not-allowed;
+    }
   }
 </style>

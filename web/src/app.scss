@@ -10,28 +10,20 @@ body {
   padding: 0;
 }
 
-/* Vibrant ambient gradient — sits behind the SPA so the header/footer's
- * backdrop-blur picks it up as the modern-minimal "frosted glass" feel.
- * Light theme: warm coral → cool indigo. Dark theme: deep violets.
+/* Vibrant diagonal gradient — coral → indigo, à la the original master UI.
+ * Sits behind the SPA so the header/footer's backdrop-blur lifts as
+ * frosted glass over a warm-to-cool wash. Dark theme: deep violet → midnight.
  */
 :root {
-  --gradient-bg: radial-gradient(
-      ellipse at top left,
-      rgba(240, 145, 130, 0.55) 0%,
-      transparent 55%
-    ),
-    radial-gradient(ellipse at bottom right, rgba(99, 132, 240, 0.5) 0%, transparent 55%),
-    linear-gradient(135deg, #fef0eb 0%, #eef0ff 100%);
+  --gradient-bg: linear-gradient(
+    to right bottom,
+    rgba(222, 83, 71, 0.62) 0%,
+    rgba(75, 138, 244, 0.62) 100%
+  );
 }
 
 [data-theme='dark'] {
-  --gradient-bg: radial-gradient(
-      ellipse at top left,
-      rgba(110, 40, 90, 0.6) 0%,
-      transparent 55%
-    ),
-    radial-gradient(ellipse at bottom right, rgba(50, 60, 140, 0.55) 0%, transparent 55%),
-    linear-gradient(135deg, #14101c 0%, #0e0e18 100%);
+  --gradient-bg: linear-gradient(to right bottom, #2a0f25 0%, #0e1430 100%);
 }
 
 #root {

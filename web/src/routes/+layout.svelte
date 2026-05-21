@@ -26,8 +26,11 @@
     flex: 1;
     width: 100%;
     max-width: 1024px;
-    margin: var(--sp-6) auto 0;
-    padding: 0 var(--sp-4);
+    margin: 0 auto;
+    /* Top-aligned: cards flow from the top-left, left-to-right, top-to-bottom.
+     * padding-top is the gap below the header (intentionally generous so the
+     * grid breathes). padding-bottom is the min gap above footer. */
+    padding: 100px var(--sp-4) var(--sp-7);
     box-sizing: border-box;
   }
 

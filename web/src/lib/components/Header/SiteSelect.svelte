@@ -24,7 +24,7 @@
 
   const items = $derived(
     ($navDataStore.bundle?.sites ?? []).map((s) => ({
-      label: nameFor(s),
+      label: nameFor(s) + ($currentSite.site?.value === s.value ? '  ✓' : ''),
       onSelect: () => uiPrefs.setSite(s.value)
     }))
   );

@@ -17,18 +17,31 @@
 </div>
 
 <style lang="scss">
+  /* Frosted glass toast — same family as Header / Menu / Dialog so it doesn't
+   * slap a flat white card on top of the gradient. */
   .toast {
     display: flex;
     align-items: center;
     gap: var(--sp-3);
     padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
-    background: var(--c-surface);
+    background: rgba(255, 255, 255, 0.78);
     color: var(--c-text);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-md);
-    box-shadow: var(--sh-md);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: var(--rd-lg);
+    box-shadow:
+      0 10px 30px rgba(35, 25, 60, 0.2),
+      0 2px 6px rgba(35, 25, 60, 0.1);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
     min-width: 280px;
     max-width: 420px;
+  }
+  :global([data-theme='dark']) .toast {
+    background: rgba(20, 16, 28, 0.78);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.4);
   }
 
   .intent-success {
@@ -62,8 +75,11 @@
     border-radius: var(--rd-sm);
 
     &:hover {
-      background: var(--c-surface-2);
+      background: rgba(0, 0, 0, 0.07);
       color: var(--c-text);
     }
+  }
+  :global([data-theme='dark']) .x:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 </style>

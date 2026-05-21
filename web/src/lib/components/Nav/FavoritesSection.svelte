@@ -25,7 +25,7 @@
     margin: 0 0 var(--sp-4);
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
-    color: var(--c-text-2);
+    color: var(--c-section-heading);
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }

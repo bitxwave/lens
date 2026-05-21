@@ -94,8 +94,9 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
+    background: rgba(20, 16, 28, 0.35);
+    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
     z-index: 1000;
     display: flex;
     align-items: center;
@@ -103,21 +104,34 @@
     padding: var(--sp-4);
   }
 
+  /* Frosted glass dialog — matches header / search / menu aesthetic so
+   * modals don't slap a hard white card onto the gradient. */
   .dialog {
-    background: var(--c-surface);
+    background: rgba(255, 255, 255, 0.86);
     color: var(--c-text);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-lg);
-    box-shadow: var(--sh-lg);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 18px;
+    box-shadow:
+      0 24px 60px rgba(35, 25, 60, 0.28),
+      0 4px 12px rgba(35, 25, 60, 0.12);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
     width: 100%;
     max-height: calc(100vh - var(--sp-8));
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
+  :global([data-theme='dark']) .dialog {
+    background: rgba(20, 16, 28, 0.85);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.6),
+      0 4px 12px rgba(0, 0, 0, 0.4);
+  }
 
   .width-sm {
-    max-width: 360px;
+    max-width: 380px;
   }
   .width-md {
     max-width: 520px;
@@ -128,7 +142,10 @@
 
   .header {
     padding: var(--sp-5) var(--sp-5) var(--sp-3);
-    border-bottom: 1px solid var(--c-border);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  :global([data-theme='dark']) .header {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
   }
 
   .title {
@@ -150,10 +167,34 @@
 
   .footer {
     padding: var(--sp-3) var(--sp-5);
-    border-top: 1px solid var(--c-border);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
     display: flex;
     justify-content: flex-end;
     gap: var(--sp-2);
-    background: var(--c-surface-2);
+    background: rgba(255, 255, 255, 0.4);
+  }
+  :global([data-theme='dark']) .footer {
+    border-top-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  /* Give ghost buttons (typically the Cancel) a visible border + soft fill so
+   * they don't disappear into the footer's glass background. Scoped to the
+   * dialog footer so other usages of ghost buttons stay flat. */
+  .footer :global(.btn.intent-ghost) {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.14);
+
+    &:hover:not(:disabled) {
+      background: rgba(0, 0, 0, 0.08);
+    }
+  }
+  :global([data-theme='dark']) .footer :global(.btn.intent-ghost) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+
+    &:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.12);
+    }
   }
 </style>

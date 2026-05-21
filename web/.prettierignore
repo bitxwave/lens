@@ -14,3 +14,6 @@ yarn.lock
 
 # TS syntax in .js extension — pending rename in Phase 1
 playwright.config.js
+
+# Generated at build time by vite plugin
+static/navIcons-manifest.json

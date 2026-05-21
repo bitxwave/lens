@@ -26,8 +26,12 @@ server/dev-data/
 
 # Local volumes / runtime
 data/
+local-data/
 *.log
 *.pid
+
+# Generated at build time by vite plugin (web/vite.config.ts)
+web/static/navIcons-manifest.json
 
 # Worktrees (per ~/.claude/rules/worktree-location.md)
 .worktrees/

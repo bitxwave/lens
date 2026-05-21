@@ -13,8 +13,11 @@
     onEdit?: (item: Item) => void;
     /** Group id this grid belongs to. null = ungrouped / favorites / flat. */
     groupId?: number | null;
+    /** Optional snippet rendered as the last grid cell (e.g. "+ new item"
+     * affordance). Sits outside the dndzone so it isn't draggable. */
+    trailing?: import('svelte').Snippet;
   }
-  let { items, onEdit, groupId = null }: Props = $props();
+  let { items, onEdit, groupId = null, trailing }: Props = $props();
 
   // Local mirror so dndzone can mutate during drag.
   let working: Item[] = $state(items);
@@ -64,32 +67,47 @@
   }
 </script>
 
-<div
-  class="grid"
-  use:dndzone={{
-    items: working,
-    dragDisabled,
-    flipDurationMs: 180,
-    dropTargetStyle: {}
-  }}
-  onconsider={onConsider}
-  onfinalize={onFinalize}
->
-  {#each working as item (item.id)}
-    <NavItem {item} {onEdit} />
-  {/each}
+<div class="grid">
+  <div
+    class="cells"
+    use:dndzone={{
+      items: working,
+      dragDisabled,
+      flipDurationMs: 180,
+      dropTargetStyle: {}
+    }}
+    onconsider={onConsider}
+    onfinalize={onFinalize}
+  >
+    {#each working as item (item.id)}
+      <NavItem {item} {onEdit} />
+    {/each}
+  </div>
+  {#if trailing}{@render trailing()}{/if}
 </div>
 
 <style lang="scss">
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 96px);
-    gap: var(--sp-5) var(--sp-4);
+    grid-template-columns: repeat(auto-fill, 120px);
+    gap: 36px 28px;
     justify-content: center;
     width: 100%;
   }
+  /* `display: contents` makes .cells a transparent dndzone wrapper so its
+   * children (NavItem cells) participate directly in the outer .grid layout,
+   * which lets the trailing snippet sit on the same row as the last NavItem. */
+  .cells {
+    display: contents;
+  }
+  @media (max-width: 500px) {
+    .grid {
+      grid-template-columns: repeat(auto-fill, 72px);
+      gap: 24px 16px;
+    }
+  }
   /* dnd-action ghost & dropping styles */
-  :global(.grid > [data-is-dnd-shadow-item]) {
+  :global(.cells > [data-is-dnd-shadow-item]) {
     visibility: visible;
     opacity: 0.5;
     pointer-events: none;
