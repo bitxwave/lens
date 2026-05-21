@@ -104,21 +104,15 @@
             class="sr-only"
           />
           <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
-            <!-- Group 1: chevron + short title + tile row -->
-            <polygon class="chev" points="4,4 4,10 8,7" />
-            <rect class="title" x="11" y="5" width="20" height="4" rx="1" />
-            <rect class="tile" x="4" y="14" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="16" y="14" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="28" y="14" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="40" y="14" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="52" y="14" width="9" height="9" rx="1.5" />
-            <!-- Group 2: chevron + short title + tile row -->
-            <polygon class="chev" points="4,32 4,38 8,35" />
-            <rect class="title" x="11" y="33" width="14" height="4" rx="1" />
-            <rect class="tile" x="4" y="42" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="16" y="42" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="28" y="42" width="9" height="9" rx="1.5" />
-            <rect class="tile" x="40" y="42" width="9" height="9" rx="1.5" />
+            <!-- Launchpad folder row: 4 rounded squares, each with a 2×2 mini grid + label -->
+            {#each [9, 31, 53, 75] as fx}
+              <rect class="folder" x={fx} y="14" width="16" height="16" rx="3" />
+              <rect class="dot" x={fx + 2.5} y="16.5" width="5" height="5" rx="1" />
+              <rect class="dot" x={fx + 8.5} y="16.5" width="5" height="5" rx="1" />
+              <rect class="dot" x={fx + 2.5} y="22.5" width="5" height="5" rx="1" />
+              <rect class="dot" x={fx + 8.5} y="22.5" width="5" height="5" rx="1" />
+              <rect class="title" x={fx + 3} y="34" width="10" height="3" rx="1" />
+            {/each}
           </svg>
           <strong>Grouped</strong>
           <small>Sections per group</small>
@@ -250,24 +244,37 @@
   :global([data-theme='dark']) .mockup {
     background: rgba(255, 255, 255, 0.06);
   }
-  .mockup .chev,
   .mockup .title {
     fill: rgba(0, 0, 0, 0.5);
   }
-  .mockup .tile {
-    fill: rgba(0, 0, 0, 0.18);
+  .mockup .folder {
+    fill: rgba(0, 0, 0, 0.06);
+    stroke: rgba(0, 0, 0, 0.18);
+    stroke-width: 0.5;
   }
-  :global([data-theme='dark']) .mockup .chev,
+  .mockup .dot,
+  .mockup .tile {
+    fill: rgba(0, 0, 0, 0.28);
+  }
   :global([data-theme='dark']) .mockup .title {
     fill: rgba(255, 255, 255, 0.55);
   }
-  :global([data-theme='dark']) .mockup .tile {
-    fill: rgba(255, 255, 255, 0.22);
+  :global([data-theme='dark']) .mockup .folder {
+    fill: rgba(255, 255, 255, 0.04);
+    stroke: rgba(255, 255, 255, 0.22);
   }
-  .layout-option.selected .mockup .chev,
+  :global([data-theme='dark']) .mockup .dot,
+  :global([data-theme='dark']) .mockup .tile {
+    fill: rgba(255, 255, 255, 0.32);
+  }
   .layout-option.selected .mockup .title {
     fill: var(--c-accent);
   }
+  .layout-option.selected .mockup .folder {
+    fill: color-mix(in srgb, var(--c-accent) 12%, transparent);
+    stroke: var(--c-accent);
+  }
+  .layout-option.selected .mockup .dot,
   .layout-option.selected .mockup .tile {
     fill: color-mix(in srgb, var(--c-accent) 70%, transparent);
   }
