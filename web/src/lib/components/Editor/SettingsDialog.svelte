@@ -104,19 +104,21 @@
             class="sr-only"
           />
           <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
-            <!-- Group 1: bullet + title bar + 4 tiles -->
-            <circle class="bullet" cx="6" cy="7" r="2" />
-            <rect class="title" x="12" y="5" width="40" height="4" rx="1" />
+            <!-- Group 1: chevron + short title + tile row -->
+            <polygon class="chev" points="4,4 4,10 8,7" />
+            <rect class="title" x="11" y="5" width="20" height="4" rx="1" />
             <rect class="tile" x="4" y="14" width="9" height="9" rx="1.5" />
             <rect class="tile" x="16" y="14" width="9" height="9" rx="1.5" />
             <rect class="tile" x="28" y="14" width="9" height="9" rx="1.5" />
             <rect class="tile" x="40" y="14" width="9" height="9" rx="1.5" />
-            <!-- Group 2: bullet + title bar + 3 tiles -->
-            <circle class="bullet" cx="6" cy="35" r="2" />
-            <rect class="title" x="12" y="33" width="30" height="4" rx="1" />
+            <rect class="tile" x="52" y="14" width="9" height="9" rx="1.5" />
+            <!-- Group 2: chevron + short title + tile row -->
+            <polygon class="chev" points="4,32 4,38 8,35" />
+            <rect class="title" x="11" y="33" width="14" height="4" rx="1" />
             <rect class="tile" x="4" y="42" width="9" height="9" rx="1.5" />
             <rect class="tile" x="16" y="42" width="9" height="9" rx="1.5" />
             <rect class="tile" x="28" y="42" width="9" height="9" rx="1.5" />
+            <rect class="tile" x="40" y="42" width="9" height="9" rx="1.5" />
           </svg>
           <strong>Grouped</strong>
           <small>Sections per group</small>
@@ -248,21 +250,21 @@
   :global([data-theme='dark']) .mockup {
     background: rgba(255, 255, 255, 0.06);
   }
-  .mockup .bullet,
+  .mockup .chev,
   .mockup .title {
     fill: rgba(0, 0, 0, 0.5);
   }
   .mockup .tile {
     fill: rgba(0, 0, 0, 0.18);
   }
-  :global([data-theme='dark']) .mockup .bullet,
+  :global([data-theme='dark']) .mockup .chev,
   :global([data-theme='dark']) .mockup .title {
     fill: rgba(255, 255, 255, 0.55);
   }
   :global([data-theme='dark']) .mockup .tile {
     fill: rgba(255, 255, 255, 0.22);
   }
-  .layout-option.selected .mockup .bullet,
+  .layout-option.selected .mockup .chev,
   .layout-option.selected .mockup .title {
     fill: var(--c-accent);
   }
