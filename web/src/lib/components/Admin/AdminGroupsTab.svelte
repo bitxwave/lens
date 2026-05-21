@@ -1,14 +1,20 @@
 <script lang="ts">
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
+  import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { navDataStore } from '$lib/stores/navData';
-  import { createGroup, patchGroup, deleteGroup } from '$lib/api/admin';
+  import { createGroup, patchGroup, deleteGroup, reorderGroups } from '$lib/api/admin';
   import { ApiError } from '$lib/api/client';
   import { toast } from '$lib/components/ui/toast';
   import { t } from '$lib/i18n/store';
   import type { Group } from '$lib/types/nav';
 
   const groups = $derived($navDataStore.bundle?.groups ?? []);
+  /** Local mirror so dndzone can mutate during drag. Synced from `groups`. */
+  let working: Group[] = $state([]);
+  $effect(() => {
+    working = [...groups].sort((a, b) => a.sortOrder - b.sortOrder);
+  });
   const itemCountByGroup = $derived.by(() => {
     const map = new Map<number, number>();
     for (const it of $navDataStore.bundle?.items ?? []) {
@@ -26,6 +32,24 @@
   let newName = $state('');
   let newSlug = $state('');
   let busy = $state(false);
+
+  /** Disable dnd while inline editing or creating to avoid input/drag fights. */
+  const dragDisabled = $derived(editingId !== null || creating || busy);
+
+  function onConsider(e: CustomEvent<DndEvent<Group>>) {
+    working = e.detail.items;
+  }
+  async function onFinalize(e: CustomEvent<DndEvent<Group>>) {
+    working = e.detail.items;
+    const entries = working.map((g, i) => ({ id: g.id, sortOrder: i }));
+    try {
+      await reorderGroups(entries);
+      await navDataStore.refetch();
+    } catch (err) {
+      await navDataStore.refetch();
+      toast.error(err instanceof ApiError ? err.message : 'Reorder failed');
+    }
+  }
 
   function startEdit(g: Group) {
     editingId = g.id;
@@ -121,9 +145,14 @@
     </div>
   {/if}
 
-  <ul class="list">
-    {#each groups as g (g.id)}
-      <li class="row">
+  <ul
+    class="list"
+    use:dndzone={{ items: working, dragDisabled, flipDurationMs: 180, dropTargetStyle: {} }}
+    onconsider={onConsider}
+    onfinalize={onFinalize}
+  >
+    {#each working as g (g.id)}
+      <li class="row" class:editing={editingId === g.id}>
         {#if editingId === g.id}
           <Input label="Slug" bind:value={editSlug} />
           <Input label="Name" bind:value={editName} />
@@ -132,6 +161,7 @@
             <Button intent="ghost" size="sm" onclick={cancelEdit}>Cancel</Button>
           </div>
         {:else}
+          <span class="handle" class:disabled={dragDisabled} aria-hidden="true">⋮⋮</span>
           <div class="info">
             <strong>{g.name}</strong>
             <span class="slug">{g.slug}</span>
@@ -144,10 +174,10 @@
         {/if}
       </li>
     {/each}
-    {#if groups.length === 0}
-      <li class="empty">No groups yet. Create one to start organising items.</li>
-    {/if}
   </ul>
+  {#if groups.length === 0}
+    <p class="empty">No groups yet. Create one to start organising items.</p>
+  {/if}
 </div>
 
 <style lang="scss">
@@ -179,7 +209,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: var(--sp-3);
     padding: var(--sp-3);
@@ -190,8 +220,21 @@
   :global([data-theme='dark']) .row {
     background: rgba(255, 255, 255, 0.04);
   }
+  .row.editing,
   .create-row {
     grid-template-columns: 1fr 1fr auto;
+  }
+  .handle {
+    color: var(--c-text-3);
+    cursor: grab;
+    user-select: none;
+    line-height: 1;
+    letter-spacing: -2px;
+    padding: 0 var(--sp-1);
+    &.disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
   }
   .row .info {
     display: flex;

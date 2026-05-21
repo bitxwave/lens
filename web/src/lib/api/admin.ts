@@ -33,6 +33,19 @@ export function deleteGroup(id: number): Promise<void> {
   return apiClient<void>({ method: 'DELETE', path: `/api/groups/${id}` });
 }
 
+export interface ReorderEntry {
+  id: number;
+  sortOrder: number;
+}
+
+export function reorderGroups(entries: ReorderEntry[]): Promise<void> {
+  return apiClient<void>({
+    method: 'POST',
+    path: '/api/groups/reorder',
+    body: entries
+  });
+}
+
 // ----- Sites -----
 
 export interface SitePayload {
@@ -63,4 +76,12 @@ export function patchSite(id: number, patch: SitePatch): Promise<Site> {
 
 export function deleteSite(id: number): Promise<void> {
   return apiClient<void>({ method: 'DELETE', path: `/api/sites/${id}` });
+}
+
+export function reorderSites(entries: ReorderEntry[]): Promise<void> {
+  return apiClient<void>({
+    method: 'POST',
+    path: '/api/sites/reorder',
+    body: entries
+  });
 }

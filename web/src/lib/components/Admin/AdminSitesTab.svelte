@@ -1,14 +1,19 @@
 <script lang="ts">
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
+  import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { navDataStore } from '$lib/stores/navData';
-  import { createSite, patchSite, deleteSite } from '$lib/api/admin';
+  import { createSite, patchSite, deleteSite, reorderSites } from '$lib/api/admin';
   import { ApiError } from '$lib/api/client';
   import { toast } from '$lib/components/ui/toast';
   import { t } from '$lib/i18n/store';
   import type { Site } from '$lib/types/nav';
 
   const sites = $derived($navDataStore.bundle?.sites ?? []);
+  let working: Site[] = $state([]);
+  $effect(() => {
+    working = [...sites].sort((a, b) => a.sortOrder - b.sortOrder);
+  });
   const linkCountBySite = $derived.by(() => {
     const map = new Map<string, number>();
     for (const it of $navDataStore.bundle?.items ?? []) {
@@ -29,6 +34,23 @@
   let newName = $state('');
   let newDefault = $state(false);
   let busy = $state(false);
+
+  const dragDisabled = $derived(editingId !== null || creating || busy);
+
+  function onConsider(e: CustomEvent<DndEvent<Site>>) {
+    working = e.detail.items;
+  }
+  async function onFinalize(e: CustomEvent<DndEvent<Site>>) {
+    working = e.detail.items;
+    const entries = working.map((s, i) => ({ id: s.id, sortOrder: i }));
+    try {
+      await reorderSites(entries);
+      await navDataStore.refetch();
+    } catch (err) {
+      await navDataStore.refetch();
+      toast.error(err instanceof ApiError ? err.message : 'Reorder failed');
+    }
+  }
 
   function startEdit(s: Site) {
     editingId = s.id;
@@ -140,9 +162,14 @@
     </div>
   {/if}
 
-  <ul class="list">
-    {#each sites as s (s.id)}
-      <li class="row">
+  <ul
+    class="list"
+    use:dndzone={{ items: working, dragDisabled, flipDurationMs: 180, dropTargetStyle: {} }}
+    onconsider={onConsider}
+    onfinalize={onFinalize}
+  >
+    {#each working as s (s.id)}
+      <li class="row" class:editing={editingId === s.id}>
         {#if editingId === s.id}
           <Input label="Value" bind:value={editValue} />
           <Input label="Name" bind:value={editName} />
@@ -155,6 +182,7 @@
             <Button intent="ghost" size="sm" onclick={cancelEdit}>Cancel</Button>
           </div>
         {:else}
+          <span class="handle" class:disabled={dragDisabled} aria-hidden="true">⋮⋮</span>
           <div class="info">
             <strong>{s.name}</strong>
             <span class="slug">{s.value}</span>
@@ -168,10 +196,10 @@
         {/if}
       </li>
     {/each}
-    {#if sites.length === 0}
-      <li class="empty">No sites yet. Create one to start adding per-site links.</li>
-    {/if}
   </ul>
+  {#if sites.length === 0}
+    <p class="empty">No sites yet. Create one to start adding per-site links.</p>
+  {/if}
 </div>
 
 <style lang="scss">
@@ -212,7 +240,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: var(--sp-3);
     padding: var(--sp-3);
@@ -223,8 +251,21 @@
   :global([data-theme='dark']) .row {
     background: rgba(255, 255, 255, 0.04);
   }
+  .row.editing,
   .create-row {
     grid-template-columns: 1fr 1fr auto auto;
+  }
+  .handle {
+    color: var(--c-text-3);
+    cursor: grab;
+    user-select: none;
+    line-height: 1;
+    letter-spacing: -2px;
+    padding: 0 var(--sp-1);
+    &.disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
   }
   .row .info {
     display: flex;
