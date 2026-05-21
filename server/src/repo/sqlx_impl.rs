@@ -123,6 +123,15 @@ impl NavRepo for SqlxNavRepo {
     }
 
     async fn delete_site(&self, id: i64) -> Result<()> {
+        let referenced: i32 =
+            sqlx::query_scalar!("SELECT COUNT(*) FROM item_links WHERE site_id=?", id)
+                .fetch_one(&self.pool)
+                .await?;
+        if referenced > 0 {
+            return Err(AppError::Conflict(format!(
+                "site is referenced by {referenced} item link(s); remove them first"
+            )));
+        }
         let res = sqlx::query!("DELETE FROM sites WHERE id=?", id)
             .execute(&self.pool)
             .await?;
@@ -223,6 +232,15 @@ impl NavRepo for SqlxNavRepo {
     }
 
     async fn delete_group(&self, id: i64) -> Result<()> {
+        let referenced: i32 =
+            sqlx::query_scalar!("SELECT COUNT(*) FROM items WHERE group_id=?", id)
+                .fetch_one(&self.pool)
+                .await?;
+        if referenced > 0 {
+            return Err(AppError::Conflict(format!(
+                "group still contains {referenced} item(s); move them first"
+            )));
+        }
         let res = sqlx::query!("DELETE FROM groups WHERE id=?", id)
             .execute(&self.pool)
             .await?;

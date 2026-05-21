@@ -1,26 +1,23 @@
 <script lang="ts">
-  import Dialog from '$lib/components/ui/Dialog.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Input from '$lib/components/ui/Input.svelte';
+  import IconSourcePicker from '$lib/components/Editor/IconSourcePicker.svelte';
   import { navDataStore } from '$lib/stores/navData';
   import { patchConfig } from '$lib/api/nav';
   import { ApiError } from '$lib/api/client';
   import { toast } from '$lib/components/ui/toast';
   import { t } from '$lib/i18n/store';
 
-  interface Props {
-    open: boolean;
-  }
-  let { open = $bindable(false) }: Props = $props();
-
   let layoutMode = $state<'grouped' | 'flat'>('grouped');
   let siteName = $state('');
-  let siteAvatarPath = $state('');
   let siteCopyright = $state('');
+  /** IconSourcePicker bindings. `avatarValue` is the picker-relative payload:
+   *   - kind=asset → bundled icon filename ("foo.png")
+   *   - kind=url   → raw URL or absolute path ("/icons/abc.png" or "https://…") */
+  let avatarKind = $state<'asset' | 'url' | 'auto-favicon'>('url');
+  let avatarValue = $state('');
   let saving = $state(false);
   let error = $state<string | null>(null);
-
-  // Snapshot of values when the dialog opened, so we only send changed keys.
   let initial = $state({
     layoutMode: 'grouped',
     siteName: '',
@@ -28,23 +25,38 @@
     siteCopyright: ''
   });
 
-  // Hydrate inputs once per open transition. Tracking only `open` (not the
-  // navDataStore meta inside) prevents bundle refetches mid-edit from wiping
-  // the user's typed-but-not-yet-saved values.
-  let hydrated = $state(false);
-  $effect(() => {
-    if (open && !hydrated) {
-      const m = $navDataStore.bundle?.meta;
-      layoutMode = (m?.layoutMode ?? 'grouped') as 'grouped' | 'flat';
-      siteName = m?.siteName ?? '';
-      siteAvatarPath = m?.siteAvatarPath ?? '';
-      siteCopyright = m?.siteCopyright ?? '';
-      initial = { layoutMode, siteName, siteAvatarPath, siteCopyright };
-      error = null;
-      hydrated = true;
-    } else if (!open) {
-      hydrated = false;
+  /** Map the stored config string to the picker's (kind, value) pair. */
+  function loadAvatar(path: string) {
+    if (path.startsWith('/navIcons/')) {
+      avatarKind = 'asset';
+      avatarValue = path.slice('/navIcons/'.length);
+    } else {
+      avatarKind = 'url';
+      avatarValue = path;
     }
+  }
+  /** Inverse of loadAvatar; produces the string to persist in config. */
+  function currentAvatarPath(): string {
+    const v = avatarValue.trim();
+    if (avatarKind === 'asset' && v) return `/navIcons/${v}`;
+    return v;
+  }
+
+  let hydrated = false;
+  $effect(() => {
+    const m = $navDataStore.bundle?.meta;
+    if (!m || hydrated) return;
+    layoutMode = (m.layoutMode ?? 'grouped') as 'grouped' | 'flat';
+    siteName = m.siteName ?? '';
+    siteCopyright = m.siteCopyright ?? '';
+    loadAvatar(m.siteAvatarPath ?? '');
+    initial = {
+      layoutMode,
+      siteName,
+      siteAvatarPath: m.siteAvatarPath ?? '',
+      siteCopyright
+    };
+    hydrated = true;
   });
 
   async function save() {
@@ -53,14 +65,15 @@
     error = null;
     try {
       const changes: Array<{ key: string; value: string }> = [];
+      const avatarPath = currentAvatarPath();
       if (layoutMode !== initial.layoutMode) {
         changes.push({ key: 'layout_mode', value: layoutMode });
       }
       if (siteName.trim() !== initial.siteName) {
         changes.push({ key: 'site_name', value: siteName.trim() });
       }
-      if (siteAvatarPath.trim() !== initial.siteAvatarPath) {
-        changes.push({ key: 'site_avatar_path', value: siteAvatarPath.trim() });
+      if (avatarPath !== initial.siteAvatarPath) {
+        changes.push({ key: 'site_avatar_path', value: avatarPath });
       }
       if (siteCopyright !== initial.siteCopyright) {
         changes.push({ key: 'site_copyright', value: siteCopyright });
@@ -68,9 +81,9 @@
       if (changes.length > 0) {
         await patchConfig(changes);
         await navDataStore.refetch();
+        initial = { layoutMode, siteName, siteAvatarPath: avatarPath, siteCopyright };
       }
       toast.success($t('common.save') + ' ✓');
-      open = false;
     } catch (e) {
       error = e instanceof ApiError ? (e.message ?? e.code) : $t('error.unknown');
     } finally {
@@ -79,78 +92,79 @@
   }
 </script>
 
-<Dialog bind:open title="Site settings" width="md">
-  <div class="form">
-    <fieldset>
-      <legend>Branding</legend>
-      <Input label="Site title" bind:value={siteName} placeholder="Pico Nav" />
-      <Input
-        label="Site avatar URL or path"
-        bind:value={siteAvatarPath}
-        placeholder="/avatars/me.png or https://…"
-        helpText="Shown next to the site title in the header. Leave blank to hide."
+<div class="form">
+  <fieldset>
+    <legend>Branding</legend>
+    <Input label="Site title" bind:value={siteName} placeholder="Pico Nav" />
+    <div class="grp">
+      <span class="lbl">Site avatar</span>
+      <IconSourcePicker
+        bind:kind={avatarKind}
+        bind:value={avatarValue}
+        allowedKinds={['asset', 'url']}
       />
-      <Input label="Footer copyright" bind:value={siteCopyright} placeholder="© 2026 Your Name" />
-    </fieldset>
-    <fieldset>
-      <legend>Layout mode</legend>
-      <div class="layout-grid">
-        <label class="layout-option" class:selected={layoutMode === 'grouped'}>
-          <input
-            type="radio"
-            name="layoutMode"
-            value="grouped"
-            bind:group={layoutMode}
-            class="sr-only"
-          />
-          <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
-            <!-- Launchpad folder row: 4 rounded squares, each with a 2×2 mini grid + label -->
-            {#each [9, 31, 53, 75] as fx}
-              <rect class="folder" x={fx} y="14" width="16" height="16" rx="3" />
-              <rect class="dot" x={fx + 2.5} y="16.5" width="5" height="5" rx="1" />
-              <rect class="dot" x={fx + 8.5} y="16.5" width="5" height="5" rx="1" />
-              <rect class="dot" x={fx + 2.5} y="22.5" width="5" height="5" rx="1" />
-              <rect class="dot" x={fx + 8.5} y="22.5" width="5" height="5" rx="1" />
-              <rect class="title" x={fx + 3} y="34" width="10" height="3" rx="1" />
+      <small class="help">Shown next to the site title in the header. Leave blank to hide.</small>
+    </div>
+    <Input label="Footer copyright" bind:value={siteCopyright} placeholder="© 2026 Your Name" />
+  </fieldset>
+
+  <fieldset>
+    <legend>Layout mode</legend>
+    <div class="layout-grid">
+      <label class="layout-option" class:selected={layoutMode === 'grouped'}>
+        <input
+          type="radio"
+          name="layoutMode"
+          value="grouped"
+          bind:group={layoutMode}
+          class="sr-only"
+        />
+        <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
+          {#each [9, 31, 53, 75] as fx}
+            <rect class="folder" x={fx} y="14" width="16" height="16" rx="3" />
+            <rect class="dot" x={fx + 2.5} y="16.5" width="5" height="5" rx="1" />
+            <rect class="dot" x={fx + 8.5} y="16.5" width="5" height="5" rx="1" />
+            <rect class="dot" x={fx + 2.5} y="22.5" width="5" height="5" rx="1" />
+            <rect class="dot" x={fx + 8.5} y="22.5" width="5" height="5" rx="1" />
+            <rect class="title" x={fx + 3} y="34" width="10" height="3" rx="1" />
+          {/each}
+        </svg>
+        <strong>Grouped</strong>
+        <small>Sections per group</small>
+      </label>
+      <label class="layout-option" class:selected={layoutMode === 'flat'}>
+        <input
+          type="radio"
+          name="layoutMode"
+          value="flat"
+          bind:group={layoutMode}
+          class="sr-only"
+        />
+        <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
+          {#each [4, 16, 28, 40] as x}
+            {#each [6, 22, 38] as y}
+              <rect class="tile" {x} {y} width="9" height="9" rx="1.5" />
             {/each}
-          </svg>
-          <strong>Grouped</strong>
-          <small>Sections per group</small>
-        </label>
-        <label class="layout-option" class:selected={layoutMode === 'flat'}>
-          <input
-            type="radio"
-            name="layoutMode"
-            value="flat"
-            bind:group={layoutMode}
-            class="sr-only"
-          />
-          <svg class="mockup" viewBox="0 0 100 60" aria-hidden="true">
-            <!-- 4 cols × 3 rows of even tiles -->
-            {#each [4, 16, 28, 40] as x}
-              {#each [6, 22, 38] as y}
-                <rect class="tile" {x} {y} width="9" height="9" rx="1.5" />
-              {/each}
-            {/each}
-          </svg>
-          <strong>Flat</strong>
-          <small>All items in one grid</small>
-        </label>
-      </div>
-    </fieldset>
-    {#if error}<p class="err">{error}</p>{/if}
-  </div>
-  {#snippet footer()}
-    <Button intent="ghost" onclick={() => (open = false)}>{$t('common.cancel')}</Button>
+          {/each}
+        </svg>
+        <strong>Flat</strong>
+        <small>All items in one grid</small>
+      </label>
+    </div>
+  </fieldset>
+
+  {#if error}<p class="err">{error}</p>{/if}
+
+  <div class="actions">
     <Button intent="primary" onclick={save} loading={saving}>{$t('common.save')}</Button>
-  {/snippet}
-</Dialog>
+  </div>
+</div>
 
 <style lang="scss">
   .form {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-3);
+    gap: var(--sp-4);
   }
   fieldset {
     border: 1px solid rgba(0, 0, 0, 0.14);
@@ -170,14 +184,30 @@
     font-weight: var(--fw-semibold);
     color: var(--c-text);
   }
+  .grp {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .lbl {
+    color: var(--c-text-2);
+    font-weight: var(--fw-medium);
+  }
+  .help {
+    font-size: var(--fs-xs);
+    color: var(--c-text-3);
+  }
   .err {
     margin: 0;
     color: var(--c-danger);
     font-size: var(--fs-sm);
   }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+  }
 
-  /* Layout mode picker — two preview cards instead of small radios.
-   * Each card has a CSS-only mini mockup of the resulting layout. */
   .layout-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -199,12 +229,10 @@
     &:hover {
       border-color: var(--c-accent);
     }
-
     &.selected {
       border-color: var(--c-accent);
       background: var(--c-accent-bg);
     }
-
     strong {
       font-size: var(--fs-md);
       color: var(--c-text);
@@ -217,8 +245,6 @@
   :global([data-theme='dark']) .layout-option {
     background: rgba(255, 255, 255, 0.04);
   }
-
-  /* Visually-hidden but reachable to screen readers / form submission */
   .sr-only {
     position: absolute;
     width: 1px;
@@ -230,8 +256,6 @@
     white-space: nowrap;
     border: 0;
   }
-
-  /* Mini SVG mockup of a nav layout. */
   .mockup {
     display: block;
     width: 100%;

@@ -1,5 +1,5 @@
 use navsrv::db::connect_in_memory;
-use navsrv::dto::{SitePatch, SitePayload};
+use navsrv::dto::{GroupPayload, IconKind, ItemPayload, SitePatch, SitePayload};
 use navsrv::error::AppError;
 use navsrv::repo::{NavRepo, SqlxNavRepo};
 
@@ -70,5 +70,46 @@ async fn unique_value_constraint_returns_conflict() {
         })
         .await
         .unwrap_err();
+    assert!(matches!(err, AppError::Conflict(_)), "got {err:?}");
+}
+
+#[tokio::test]
+async fn delete_site_referenced_by_item_returns_conflict() {
+    let pool = connect_in_memory().await.unwrap();
+    let repo = SqlxNavRepo::new(pool);
+    let g = repo
+        .create_group(GroupPayload {
+            slug: "g".into(),
+            name: "G".into(),
+            name_i18n: None,
+            collapsed_default: false,
+        })
+        .await
+        .unwrap();
+    let s = repo
+        .create_site(SitePayload {
+            value: "siteA".into(),
+            name: "A".into(),
+            name_i18n: None,
+            is_default: true,
+        })
+        .await
+        .unwrap();
+    let mut links = std::collections::BTreeMap::new();
+    links.insert("siteA".into(), "http://x".into());
+    repo.create_item(ItemPayload {
+        group_id: Some(g.id),
+        name: "I".into(),
+        name_i18n: None,
+        description: None,
+        description_i18n: None,
+        icon_kind: IconKind::Asset,
+        icon_value: "x.png".into(),
+        links,
+        tag_slugs: vec![],
+    })
+    .await
+    .unwrap();
+    let err = repo.delete_site(s.id).await.unwrap_err();
     assert!(matches!(err, AppError::Conflict(_)), "got {err:?}");
 }

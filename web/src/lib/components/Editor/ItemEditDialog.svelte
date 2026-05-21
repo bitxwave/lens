@@ -1,30 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import Input from '$lib/components/ui/Input.svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import IconSourcePicker from './IconSourcePicker.svelte';
   import { t } from '$lib/i18n/store';
   import { navDataStore } from '$lib/stores/navData';
   import { createItem, patchItem, type ItemPayload } from '$lib/api/nav';
   import { toast } from '$lib/components/ui/toast';
   import { ApiError } from '$lib/api/client';
   import type { Item } from '$lib/types/nav';
-
-  /** List of bundled asset filenames, fetched lazily on first open.
-   * Generated at build/dev time by vite plugin in vite.config.ts. */
-  let assetIcons = $state<string[]>([]);
-  let assetIconsLoaded = false;
-  async function loadAssetIcons() {
-    if (assetIconsLoaded) return;
-    assetIconsLoaded = true;
-    try {
-      const res = await fetch('/navIcons-manifest.json');
-      if (res.ok) assetIcons = (await res.json()) as string[];
-    } catch {
-      /* manifest may be missing in some build flavors; picker just shows empty */
-    }
-  }
-  onMount(loadAssetIcons);
 
   interface Props {
     open: boolean;
@@ -152,43 +136,8 @@
         {/each}
       </select>
     </label>
-    <label class="grp">
-      <span class="lbl">Icon source</span>
-      <select bind:value={iconKind}>
-        <option value="asset">Pick a bundled icon</option>
-        <option value="url">Custom image URL</option>
-        <option value="auto-favicon">Auto from website (host)</option>
-      </select>
-    </label>
-    {#if iconKind === 'asset'}
-      <div class="grp">
-        <span class="lbl">
-          Bundled icons {#if assetIcons.length}({assetIcons.length}){/if}
-        </span>
-        <div class="icon-picker">
-          {#each assetIcons as f (f)}
-            <button
-              type="button"
-              class="icon-cell"
-              class:selected={iconValue === f}
-              title={f}
-              onclick={() => (iconValue = f)}
-            >
-              <img src="/navIcons/{f}" alt={f} loading="lazy" />
-            </button>
-          {/each}
-        </div>
-        {#if iconValue}
-          <span class="picked">Selected: <code>{iconValue}</code></span>
-        {/if}
-      </div>
-    {:else}
-      <Input
-        label={iconKind === 'url' ? 'Image URL' : 'Website host (e.g. example.com)'}
-        bind:value={iconValue}
-        placeholder={iconKind === 'url' ? 'https://example.com/logo.png' : 'example.com'}
-      />
-    {/if}
+    <IconSourcePicker bind:kind={iconKind} bind:value={iconValue} />
+
     <div class="grp">
       <span class="lbl">Links per site</span>
       <div class="links">
@@ -268,58 +217,6 @@
     margin: 0;
     color: var(--c-danger);
     font-size: var(--fs-sm);
-  }
-
-  /* Bundled-icon grid: small clickable thumbnails. */
-  .icon-picker {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, 56px);
-    gap: var(--sp-2);
-    max-height: 220px;
-    overflow-y: auto;
-    padding: var(--sp-2);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-md);
-    background: rgba(255, 255, 255, 0.4);
-  }
-  :global([data-theme='dark']) .icon-picker {
-    background: rgba(255, 255, 255, 0.04);
-  }
-  .icon-cell {
-    width: 56px;
-    height: 56px;
-    padding: 6px;
-    border: 2px solid transparent;
-    background: rgba(255, 255, 255, 0.65);
-    border-radius: var(--rd-md);
-    cursor: pointer;
-    transition:
-      border-color var(--tr-fast),
-      transform var(--tr-fast);
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    &:hover {
-      transform: translateY(-1px);
-      border-color: var(--c-accent);
-    }
-    &.selected {
-      border-color: var(--c-accent);
-      background: var(--c-accent-bg);
-    }
-  }
-  .picked {
-    font-size: var(--fs-xs);
-    color: var(--c-text-3);
-
-    code {
-      font-family: var(--ft-mono);
-      color: var(--c-text-2);
-    }
   }
 
   /* Per-site link rows: site picker | url input | remove */

@@ -3,14 +3,13 @@
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import LoginDialog from '$lib/components/Editor/LoginDialog.svelte';
   import ChangePasswordDialog from '$lib/components/Editor/ChangePasswordDialog.svelte';
-  import SettingsDialog from '$lib/components/Editor/SettingsDialog.svelte';
   import EditToggle from './EditToggle.svelte';
+  import { goto } from '$app/navigation';
   import { sessionStore } from '$lib/stores/session';
   import { t } from '$lib/i18n/store';
 
   let loginOpen = $state(false);
   let pwOpen = $state(false);
-  let settingsOpen = $state(false);
 
   async function onLogout() {
     await sessionStore.logout();
@@ -19,7 +18,7 @@
 
 {#if $sessionStore.authed}
   <EditToggle />
-  <IconButton label="Settings" onclick={() => (settingsOpen = true)}>
+  <IconButton label="Admin" onclick={() => goto('/admin')}>
     <svg
       width="18"
       height="18"
@@ -62,4 +61,3 @@
 
 <LoginDialog bind:open={loginOpen} />
 <ChangePasswordDialog bind:open={pwOpen} />
-<SettingsDialog bind:open={settingsOpen} />
