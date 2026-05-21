@@ -8,7 +8,6 @@ export interface BootstrapItem {
   iconKind: 'asset' | 'url' | 'auto-favicon';
   iconValue: string;
   links: Record<string, string>;
-  tagSlugs?: string[];
 }
 
 export interface BootstrapSite {
@@ -38,7 +37,6 @@ export interface BootstrapDoc {
   };
   sites: BootstrapSite[];
   groups: BootstrapGroup[];
-  tags: { slug: string; name: string; name_i18n?: Record<string, string> }[];
   items: BootstrapItem[];
 }
 
@@ -64,7 +62,6 @@ export const BOOTSTRAP: BootstrapDoc = {
     { slug: 'nas', name: 'NAS', name_i18n: { en: 'NAS' }, sort_order: 2 },
     { slug: 'tools', name: '工具', name_i18n: { en: 'Tools' }, sort_order: 3 }
   ],
-  tags: [],
   items: [
     // (omitted here; same as bootstrap.json items section from Task 1)
   ]

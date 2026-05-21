@@ -69,25 +69,3 @@ async fn site_lifecycle() {
         .await
         .assert_status(axum::http::StatusCode::NO_CONTENT);
 }
-
-#[tokio::test]
-async fn tag_lifecycle() {
-    let server = boot().await;
-    let t: serde_json::Value = server
-        .post("/api/tags")
-        .json(&serde_json::json!({
-            "slug":"fav","name":"Favorite"
-        }))
-        .await
-        .json();
-    let id = t["id"].as_i64().unwrap();
-    server
-        .patch(&format!("/api/tags/{id}"))
-        .json(&serde_json::json!({"name":"⭐"}))
-        .await
-        .assert_status_ok();
-    server
-        .delete(&format!("/api/tags/{id}"))
-        .await
-        .assert_status(axum::http::StatusCode::NO_CONTENT);
-}

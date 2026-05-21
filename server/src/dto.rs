@@ -27,15 +27,6 @@ pub struct Group {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct Tag {
-    pub id: i64,
-    pub slug: String,
-    pub name: String,
-    pub name_i18n: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum IconKind {
     Asset,
@@ -56,7 +47,6 @@ pub struct Item {
     pub icon_value: String,
     pub sort_order: i64,
     pub links: std::collections::BTreeMap<String, String>, // site.value -> URL
-    pub tag_slugs: Vec<String>,
     #[serde(default = "zero")]
     pub created_at: i64,
     #[serde(default = "zero")]
@@ -92,7 +82,6 @@ pub struct NavBundle {
     pub sites: Vec<Site>,
     pub groups: Vec<Group>,
     pub items: Vec<Item>,
-    pub tags: Vec<Tag>,
 }
 
 // ----- Write payloads -----
@@ -112,8 +101,6 @@ pub struct ItemPayload {
     pub icon_value: String,
     #[serde(default)]
     pub links: std::collections::BTreeMap<String, String>,
-    #[serde(default)]
-    pub tag_slugs: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -135,8 +122,6 @@ pub struct ItemPatch {
     pub icon_value: Option<String>,
     #[serde(default)]
     pub links: Option<std::collections::BTreeMap<String, String>>,
-    #[serde(default)]
-    pub tag_slugs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -194,24 +179,4 @@ pub struct SitePatch {
     pub name_i18n: Option<Option<serde_json::Value>>,
     #[serde(default)]
     pub is_default: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TagPayload {
-    pub slug: String,
-    pub name: String,
-    #[serde(default)]
-    pub name_i18n: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct TagPatch {
-    #[serde(default)]
-    pub slug: Option<String>,
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub name_i18n: Option<Option<serde_json::Value>>,
 }

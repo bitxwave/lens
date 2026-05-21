@@ -27,7 +27,6 @@
   let iconValue = $state('');
   /** Each row = (site value, url). Empty rows are dropped on submit. */
   let linkRows = $state<Array<{ siteValue: string; url: string }>>([]);
-  let tagSlugsCsv = $state(''); // simplified: comma-separated
   let submitting = $state(false);
   let error = $state<string | null>(null);
 
@@ -40,7 +39,6 @@
         iconKind = target.iconKind;
         iconValue = target.iconValue;
         linkRows = Object.entries(target.links).map(([siteValue, url]) => ({ siteValue, url }));
-        tagSlugsCsv = target.tagSlugs.join(', ');
       } else {
         name = '';
         groupId = defaultGroupId;
@@ -48,7 +46,6 @@
         iconValue = '';
         const firstSite = $navDataStore.bundle?.sites[0]?.value ?? '';
         linkRows = firstSite ? [{ siteValue: firstSite, url: '' }] : [];
-        tagSlugsCsv = '';
       }
       error = null;
       hydrated = true;
@@ -97,11 +94,7 @@
         name: name.trim(),
         iconKind,
         iconValue: iconValue.trim(),
-        links,
-        tagSlugs: tagSlugsCsv
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
+        links
       };
       if (target) {
         await patchItem(target.id, payload);
@@ -172,7 +165,6 @@
         </button>
       </div>
     </div>
-    <Input label="Tag slugs (comma-separated)" bind:value={tagSlugsCsv} placeholder="fav, tools" />
     {#if error}<p class="err">{error}</p>{/if}
   </div>
   {#snippet footer()}

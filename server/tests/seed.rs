@@ -9,7 +9,7 @@ async fn seed_populates_sites_and_groups() {
     let nav: Arc<dyn NavRepo> = Arc::new(SqlxNavRepo::new(pool.clone()));
     let cfg: Arc<dyn ConfigRepo> = Arc::new(SqlxConfigRepo::new(pool.clone()));
     seed_if_empty(nav.clone(), cfg.clone()).await.unwrap();
-    let (sites, groups, _items, _tags) = nav.get_bundle().await.unwrap();
+    let (sites, groups, _items) = nav.get_bundle().await.unwrap();
     assert!(sites.iter().any(|s| s.value == "shangHai"));
     assert!(groups.iter().any(|g| g.slug == "network"));
     assert_eq!(

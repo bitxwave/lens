@@ -27,14 +27,6 @@ export const GroupSchema = z.object({
 });
 export type Group = z.infer<typeof GroupSchema>;
 
-export const TagSchema = z.object({
-  id: z.number().int(),
-  slug: z.string(),
-  name: z.string(),
-  nameI18n: I18nMap
-});
-export type Tag = z.infer<typeof TagSchema>;
-
 export const ItemSchema = z.object({
   id: z.number().int(),
   groupId: z.number().int().nullable(),
@@ -46,7 +38,6 @@ export const ItemSchema = z.object({
   iconValue: z.string(),
   sortOrder: z.number().int(),
   links: z.record(z.string(), z.string()),
-  tagSlugs: z.array(z.string()),
   createdAt: z.number().int(),
   updatedAt: z.number().int()
 });
@@ -75,8 +66,7 @@ export const NavBundleSchema = z.object({
   meta: MetaSchema,
   sites: z.array(SiteSchema),
   groups: z.array(GroupSchema),
-  items: z.array(ItemSchema),
-  tags: z.array(TagSchema)
+  items: z.array(ItemSchema)
 });
 export type NavBundle = z.infer<typeof NavBundleSchema>;
 

@@ -11,7 +11,6 @@ export interface ItemPayload {
   iconKind: IconKind;
   iconValue: string;
   links: Record<string, string>;
-  tagSlugs: string[];
 }
 
 export type ItemPatch = Partial<ItemPayload>;

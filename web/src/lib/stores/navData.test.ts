@@ -16,12 +16,12 @@ const sampleBundle = {
     siteCopyright: '©',
     siteIcp: null,
     sitePolice: null,
-    defaultTheme: 'system' as const
+    defaultTheme: 'system' as const,
+    layoutMode: 'grouped' as const
   },
   sites: [],
   groups: [],
-  items: [],
-  tags: []
+  items: []
 };
 
 describe('navDataStore', () => {
@@ -64,7 +64,6 @@ describe('navDataStore', () => {
           iconValue: 'x.png',
           sortOrder: 0,
           links: {},
-          tagSlugs: [],
           createdAt: 0,
           updatedAt: 0
         }

@@ -5,7 +5,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait NavRepo: Send + Sync {
     // ----- Bundle -----
-    async fn get_bundle(&self) -> Result<(Vec<Site>, Vec<Group>, Vec<Item>, Vec<Tag>)>;
+    async fn get_bundle(&self) -> Result<(Vec<Site>, Vec<Group>, Vec<Item>)>;
 
     // ----- Sites -----
     async fn list_sites(&self) -> Result<Vec<Site>>;
@@ -26,10 +26,4 @@ pub trait NavRepo: Send + Sync {
     async fn patch_item(&self, id: i64, p: ItemPatch) -> Result<Item>;
     async fn delete_item(&self, id: i64) -> Result<()>;
     async fn reorder_items(&self, entries: Vec<ReorderEntry>) -> Result<()>;
-
-    // ----- Tags -----
-    async fn list_tags(&self) -> Result<Vec<Tag>>;
-    async fn create_tag(&self, p: TagPayload) -> Result<Tag>;
-    async fn patch_tag(&self, id: i64, p: TagPatch) -> Result<Tag>;
-    async fn delete_tag(&self, id: i64) -> Result<()>;
 }

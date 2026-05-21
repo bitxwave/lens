@@ -5,14 +5,12 @@
   import AdminSiteTab from '$lib/components/Admin/AdminSiteTab.svelte';
   import AdminGroupsTab from '$lib/components/Admin/AdminGroupsTab.svelte';
   import AdminSitesTab from '$lib/components/Admin/AdminSitesTab.svelte';
-  import AdminTagsTab from '$lib/components/Admin/AdminTagsTab.svelte';
 
-  type TabId = 'site' | 'groups' | 'sites' | 'tags';
+  type TabId = 'site' | 'groups' | 'sites';
   const TABS: { id: TabId; label: string }[] = [
     { id: 'site', label: 'Site' },
     { id: 'groups', label: 'Groups' },
-    { id: 'sites', label: 'Sites' },
-    { id: 'tags', label: 'Tags' }
+    { id: 'sites', label: 'Sites' }
   ];
 
   let active = $state<TabId>('site');
@@ -65,8 +63,6 @@
           <AdminGroupsTab />
         {:else if active === 'sites'}
           <AdminSitesTab />
-        {:else if active === 'tags'}
-          <AdminTagsTab />
         {/if}
       </section>
     </div>

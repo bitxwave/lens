@@ -1,7 +1,6 @@
 <script lang="ts">
   import Brand from './Brand.svelte';
   import SearchBar from './SearchBar.svelte';
-  import TagFilterChips from './TagFilterChips.svelte';
   import SiteSelect from './SiteSelect.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
   import LocaleToggle from './LocaleToggle.svelte';
@@ -15,7 +14,6 @@
     </div>
     <div class="center">
       <SearchBar />
-      <TagFilterChips />
     </div>
     <div class="right">
       <SiteSelect />

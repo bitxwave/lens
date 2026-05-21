@@ -8,7 +8,6 @@ import {
   currentSite,
   visibleSections,
   visibleFavorites,
-  toggleTag,
   clearFilters
 } from './visible';
 import type { NavBundle } from '$lib/types/nav';
@@ -21,7 +20,8 @@ const bundle: NavBundle = {
     siteCopyright: '',
     siteIcp: null,
     sitePolice: null,
-    defaultTheme: 'system'
+    defaultTheme: 'system',
+    layoutMode: 'grouped'
   },
   sites: [
     { id: 1, value: 'sh', name: 'SH', nameI18n: null, sortOrder: 0, isDefault: true },
@@ -37,7 +37,6 @@ const bundle: NavBundle = {
       collapsedDefault: false
     }
   ],
-  tags: [{ id: 100, slug: 'fav', name: 'Favorite', nameI18n: null }],
   items: [
     {
       id: 1,
@@ -50,7 +49,6 @@ const bundle: NavBundle = {
       iconValue: 'r.png',
       sortOrder: 0,
       links: { sh: 'http://1', bj: 'http://1b' },
-      tagSlugs: ['fav'],
       createdAt: 0,
       updatedAt: 0
     },
@@ -65,7 +63,6 @@ const bundle: NavBundle = {
       iconValue: 's.png',
       sortOrder: 1,
       links: { sh: 'http://2' }, // no bj
-      tagSlugs: [],
       createdAt: 0,
       updatedAt: 0
     }
@@ -98,12 +95,6 @@ describe('visibleSections', () => {
   it('search filters by name', () => {
     searchQuery.set('rou');
     expect(get(visibleSections)[0].items.map((i) => i.name)).toEqual(['Router']);
-  });
-
-  it('tag filter applies', () => {
-    toggleTag('fav');
-    const out = get(visibleSections);
-    expect(out[0].items.map((i) => i.name)).toEqual(['Router']);
   });
 
   it('visibleFavorites lists user-favorited items only', () => {

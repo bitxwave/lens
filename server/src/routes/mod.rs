@@ -9,7 +9,6 @@ pub mod icons;
 pub mod items;
 pub mod nav;
 pub mod sites;
-pub mod tags;
 
 use crate::state::AppState;
 
@@ -25,7 +24,6 @@ pub fn api(state: AppState) -> Router {
                 .merge(items::router())
                 .merge(groups::router())
                 .merge(sites::router())
-                .merge(tags::router())
                 .merge(icons::router())
                 .merge(favicon::router()),
         )

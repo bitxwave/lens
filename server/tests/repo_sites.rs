@@ -106,7 +106,6 @@ async fn delete_site_referenced_by_item_returns_conflict() {
         icon_kind: IconKind::Asset,
         icon_value: "x.png".into(),
         links,
-        tag_slugs: vec![],
     })
     .await
     .unwrap();

@@ -5,7 +5,6 @@ import { uiPrefs } from './uiPrefs';
 import type { Group, Item, Site } from '$lib/types/nav';
 
 export const searchQuery = writable<string>('');
-export const activeTagSlugs = writable<Set<string>>(new Set());
 
 export interface ResolvedSite {
   /** The chosen Site object, or null if bundle empty. */
@@ -29,28 +28,21 @@ export interface VisibleGroup {
 }
 
 /**
- * Items grouped + filtered by current site, search term, and active tag chips.
- * Empty groups are dropped.
+ * Items grouped + filtered by current site and search term. Empty groups are dropped.
  */
 export const visibleSections: Readable<VisibleGroup[]> = derived(
-  [navDataStore, currentSite, searchQuery, activeTagSlugs],
-  ([$nav, $cur, $q, $tags]) => {
+  [navDataStore, currentSite, searchQuery],
+  ([$nav, $cur, $q]) => {
     const bundle = $nav.bundle;
     if (!bundle || !$cur.site) return [];
     const siteValue = $cur.site.value;
     const q = $q.trim().toLowerCase();
-    const wantTags = $tags;
 
     const filtered = bundle.items
       .filter((i) => i.links[siteValue] !== undefined)
       .filter((i) => {
-        if (wantTags.size === 0) return true;
-        return i.tagSlugs.some((s) => wantTags.has(s));
-      })
-      .filter((i) => {
         if (!q) return true;
         if (i.name.toLowerCase().includes(q)) return true;
-        if (i.tagSlugs.some((s) => s.toLowerCase().includes(q))) return true;
         if (i.description && i.description.toLowerCase().includes(q)) return true;
         return false;
       });
@@ -87,11 +79,6 @@ export const visibleFavorites: Readable<Item[]> = derived(
   }
 );
 
-/** All tag slugs in the bundle, used by chip filter. */
-export const allTagSlugs: Readable<string[]> = derived(navDataStore, ($n) =>
-  $n.bundle ? $n.bundle.tags.map((t) => t.slug).sort() : []
-);
-
 /** Flat layout: all visible items in one list (no grouping). */
 export const visibleFlatItems: Readable<Item[]> = derived(visibleSections, ($sections) =>
   $sections.flatMap((s) => s.items)
@@ -102,24 +89,14 @@ export const layoutMode: Readable<'grouped' | 'flat'> = derived(navDataStore, ($
   $n.bundle?.meta.layoutMode === 'flat' ? 'flat' : 'grouped'
 );
 
-/** True if any filter (search or tag) is active. */
+/** True if a search filter is active. */
 export const hasActiveFilter: Readable<boolean> = derived(
-  [searchQuery, activeTagSlugs],
-  ([$q, $tags]) => $q.trim().length > 0 || $tags.size > 0
+  searchQuery,
+  ($q) => $q.trim().length > 0
 );
 
-/** Helpers for tag chips */
-export function toggleTag(slug: string) {
-  activeTagSlugs.update((s) => {
-    const next = new Set(s);
-    if (next.has(slug)) next.delete(slug);
-    else next.add(slug);
-    return next;
-  });
-}
 export function clearFilters() {
   searchQuery.set('');
-  activeTagSlugs.set(new Set());
 }
 
 /** For unit tests / dev console */

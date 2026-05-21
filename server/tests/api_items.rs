@@ -53,8 +53,7 @@ async fn create_then_list_via_bundle() {
         "name": "Router",
         "iconKind": "asset",
         "iconValue": "router.png",
-        "links": { "shangHai": "http://10.0.0.1" },
-        "tagSlugs": []
+        "links": { "shangHai": "http://10.0.0.1" }
     });
     let res = server.post("/api/items").json(&body).await;
     res.assert_status(axum::http::StatusCode::CREATED);

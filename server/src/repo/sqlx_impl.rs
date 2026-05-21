@@ -39,12 +39,11 @@ fn map_unique_violation(err: sqlx::Error) -> AppError {
 
 #[async_trait]
 impl NavRepo for SqlxNavRepo {
-    async fn get_bundle(&self) -> Result<(Vec<Site>, Vec<Group>, Vec<Item>, Vec<Tag>)> {
+    async fn get_bundle(&self) -> Result<(Vec<Site>, Vec<Group>, Vec<Item>)> {
         let sites = self.list_sites().await?;
         let groups = self.list_groups().await?;
-        let tags = self.list_tags().await?;
         let items = self.list_items_full().await?;
-        Ok((sites, groups, items, tags))
+        Ok((sites, groups, items))
     }
 
     // ---- Sites ----
@@ -267,79 +266,6 @@ impl NavRepo for SqlxNavRepo {
 
     // ---- Tags ----
 
-    async fn list_tags(&self) -> Result<Vec<Tag>> {
-        let rows = sqlx::query!(
-            r#"SELECT id as "id!: i64", slug, name,
-                      name_i18n as "name_i18n: serde_json::Value"
-               FROM tags ORDER BY id"#
-        )
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows
-            .into_iter()
-            .map(|r| Tag {
-                id: r.id,
-                slug: r.slug,
-                name: r.name,
-                name_i18n: r.name_i18n,
-            })
-            .collect())
-    }
-
-    async fn create_tag(&self, p: TagPayload) -> Result<Tag> {
-        let res = sqlx::query!(
-            "INSERT INTO tags (slug, name, name_i18n) VALUES (?, ?, ?)",
-            p.slug,
-            p.name,
-            p.name_i18n
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(map_unique_violation)?;
-        let id = res.last_insert_rowid();
-        self.list_tags()
-            .await?
-            .into_iter()
-            .find(|t| t.id == id)
-            .ok_or(AppError::NotFound)
-    }
-
-    async fn patch_tag(&self, id: i64, p: TagPatch) -> Result<Tag> {
-        let mut tx = self.pool.begin().await?;
-        if let Some(v) = p.slug {
-            sqlx::query!("UPDATE tags SET slug=? WHERE id=?", v, id)
-                .execute(&mut *tx)
-                .await
-                .map_err(map_unique_violation)?;
-        }
-        if let Some(v) = p.name {
-            sqlx::query!("UPDATE tags SET name=? WHERE id=?", v, id)
-                .execute(&mut *tx)
-                .await?;
-        }
-        if let Some(v) = p.name_i18n {
-            sqlx::query!("UPDATE tags SET name_i18n=? WHERE id=?", v, id)
-                .execute(&mut *tx)
-                .await?;
-        }
-        tx.commit().await?;
-        self.list_tags()
-            .await?
-            .into_iter()
-            .find(|t| t.id == id)
-            .ok_or(AppError::NotFound)
-    }
-
-    async fn delete_tag(&self, id: i64) -> Result<()> {
-        let res = sqlx::query!("DELETE FROM tags WHERE id=?", id)
-            .execute(&self.pool)
-            .await?;
-        if res.rows_affected() == 0 {
-            return Err(AppError::NotFound);
-        }
-        Ok(())
-    }
-
     // ---- Items ----
 
     async fn create_item(&self, p: ItemPayload) -> Result<Item> {
@@ -373,23 +299,6 @@ impl NavRepo for SqlxNavRepo {
             .await?;
         }
 
-        for slug in &p.tag_slugs {
-            sqlx::query!(
-                "INSERT OR IGNORE INTO tags (slug, name) VALUES (?, ?)",
-                slug,
-                slug
-            )
-            .execute(&mut *tx)
-            .await?;
-            sqlx::query!(
-                r#"INSERT INTO item_tags (item_id, tag_id)
-                    SELECT ?, tags.id FROM tags WHERE tags.slug = ?"#,
-                id,
-                slug
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
         tx.commit().await?;
         self.fetch_item(id).await
     }
@@ -489,28 +398,6 @@ impl NavRepo for SqlxNavRepo {
                 .await?;
             }
         }
-        if let Some(tag_slugs) = p.tag_slugs {
-            sqlx::query!("DELETE FROM item_tags WHERE item_id=?", id)
-                .execute(&mut *tx)
-                .await?;
-            for slug in tag_slugs {
-                sqlx::query!(
-                    "INSERT OR IGNORE INTO tags (slug, name) VALUES (?, ?)",
-                    slug,
-                    slug
-                )
-                .execute(&mut *tx)
-                .await?;
-                sqlx::query!(
-                    r#"INSERT INTO item_tags (item_id, tag_id)
-                        SELECT ?, tags.id FROM tags WHERE tags.slug = ?"#,
-                    id,
-                    slug
-                )
-                .execute(&mut *tx)
-                .await?;
-            }
-        }
         tx.commit().await?;
         self.fetch_item(id).await
     }
@@ -589,13 +476,6 @@ impl SqlxNavRepo {
         .fetch_all(&self.pool)
         .await?;
 
-        let tag_rows = sqlx::query!(
-            r#"SELECT it.item_id as "item_id!: i64", t.slug as "slug!"
-               FROM item_tags it JOIN tags t ON t.id = it.tag_id"#
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
         let mut items: Vec<Item> = item_rows
             .into_iter()
             .map(|r| {
@@ -615,7 +495,6 @@ impl SqlxNavRepo {
                     icon_value: r.icon_value,
                     sort_order: r.sort_order,
                     links: Default::default(),
-                    tag_slugs: Vec::new(),
                     created_at: r.created_at,
                     updated_at: r.updated_at,
                 }
@@ -628,11 +507,6 @@ impl SqlxNavRepo {
         for r in link_rows {
             if let Some(&idx) = by_id.get(&r.item_id) {
                 items[idx].links.insert(r.site_value, r.url);
-            }
-        }
-        for r in tag_rows {
-            if let Some(&idx) = by_id.get(&r.item_id) {
-                items[idx].tag_slugs.push(r.slug);
             }
         }
         Ok(items)

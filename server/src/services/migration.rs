@@ -13,7 +13,6 @@ struct BootstrapDoc {
     meta: BootstrapMeta,
     sites: Vec<BootstrapSite>,
     groups: Vec<BootstrapGroup>,
-    tags: Vec<BootstrapTag>,
     items: Vec<BootstrapItem>,
 }
 
@@ -60,14 +59,6 @@ struct BootstrapGroup {
 }
 
 #[derive(Deserialize)]
-struct BootstrapTag {
-    slug: String,
-    name: String,
-    #[serde(default)]
-    name_i18n: Option<serde_json::Value>,
-}
-
-#[derive(Deserialize)]
 struct BootstrapItem {
     name: String,
     #[serde(default)]
@@ -80,12 +71,10 @@ struct BootstrapItem {
     icon_value: String,
     #[serde(default)]
     links: std::collections::BTreeMap<String, String>,
-    #[serde(default, rename = "tagSlugs")]
-    tag_slugs: Vec<String>,
 }
 
 pub async fn seed_if_empty(nav: Arc<dyn NavRepo>, config: Arc<dyn ConfigRepo>) -> Result<()> {
-    let (sites, _, items, _) = nav.get_bundle().await?;
+    let (sites, _, items) = nav.get_bundle().await?;
     if !sites.is_empty() || !items.is_empty() {
         return Ok(());
     }
@@ -137,15 +126,6 @@ pub async fn seed_if_empty(nav: Arc<dyn NavRepo>, config: Arc<dyn ConfigRepo>) -
             .await?;
         group_id_by_slug.insert(g.slug, created.id);
     }
-    // Tags
-    for t in doc.tags {
-        nav.create_tag(TagPayload {
-            slug: t.slug,
-            name: t.name,
-            name_i18n: t.name_i18n,
-        })
-        .await?;
-    }
     // Items
     for it in doc.items {
         let group_id = it
@@ -160,7 +140,6 @@ pub async fn seed_if_empty(nav: Arc<dyn NavRepo>, config: Arc<dyn ConfigRepo>) -
             icon_kind: it.icon_kind,
             icon_value: it.icon_value,
             links: it.links,
-            tag_slugs: it.tag_slugs,
         })
         .await?;
     }

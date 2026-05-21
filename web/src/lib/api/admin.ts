@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { GroupSchema, SiteSchema, TagSchema, type Group, type Site, type Tag } from '$lib/types/nav';
+import { GroupSchema, SiteSchema, type Group, type Site } from '$lib/types/nav';
 
 // ----- Groups -----
 
@@ -63,35 +63,4 @@ export function patchSite(id: number, patch: SitePatch): Promise<Site> {
 
 export function deleteSite(id: number): Promise<void> {
   return apiClient<void>({ method: 'DELETE', path: `/api/sites/${id}` });
-}
-
-// ----- Tags -----
-
-export interface TagPayload {
-  slug: string;
-  name: string;
-  nameI18n?: Record<string, string> | null;
-}
-export type TagPatch = Partial<TagPayload>;
-
-export function createTag(payload: TagPayload): Promise<Tag> {
-  return apiClient<Tag>({
-    method: 'POST',
-    path: '/api/tags',
-    body: payload,
-    responseSchema: TagSchema
-  });
-}
-
-export function patchTag(id: number, patch: TagPatch): Promise<Tag> {
-  return apiClient<Tag>({
-    method: 'PATCH',
-    path: `/api/tags/${id}`,
-    body: patch,
-    responseSchema: TagSchema
-  });
-}
-
-export function deleteTag(id: number): Promise<void> {
-  return apiClient<void>({ method: 'DELETE', path: `/api/tags/${id}` });
 }

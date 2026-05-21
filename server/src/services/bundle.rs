@@ -7,7 +7,7 @@ pub async fn assemble_bundle(
     nav: Arc<dyn NavRepo>,
     config: Arc<dyn ConfigRepo>,
 ) -> Result<NavBundle> {
-    let (sites, groups, items, tags) = nav.get_bundle().await?;
+    let (sites, groups, items) = nav.get_bundle().await?;
 
     let cfg = config
         .get_many(&[
@@ -64,6 +64,5 @@ pub async fn assemble_bundle(
         sites,
         groups,
         items,
-        tags,
     })
 }
