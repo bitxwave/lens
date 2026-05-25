@@ -34,6 +34,7 @@
   "home.folder.untitled": "Untitled",
   "home.folder.deleteConfirm": "Delete folder \"{{name}}\" and release its {{count}} item(s) to the home grid?",
   "home.pager.aria": "Pages",
+  "home.site.aria": "Site switcher",
 
   "error.network.offline": "Cannot reach server",
   "error.network.retry": "Retry",

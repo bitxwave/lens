@@ -15,6 +15,7 @@
   import InlineFolderExpand from '$lib/components/Nav/InlineFolderExpand.svelte';
   import JiggleHost from '$lib/components/Nav/JiggleHost.svelte';
   import PageDots from '$lib/components/Nav/PageDots.svelte';
+  import SitePills from '$lib/components/Nav/SitePills.svelte';
   import EmptyState from '$lib/components/Nav/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -354,6 +355,8 @@
 <svelte:head>
   <title>{siteTitle}</title>
 </svelte:head>
+
+<SitePills />
 
 {#if $navDataStore.loading && !$navDataStore.bundle}
   <div class="loading">
