@@ -1,11 +1,20 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { navDataStore } from '$lib/stores/navData';
-  import { rootCards, searchHits, hasActiveFilter, clearFilters } from '$lib/stores/visible';
+  import {
+    rootCards,
+    searchHits,
+    hasActiveFilter,
+    clearFilters,
+    currentSite
+  } from '$lib/stores/visible';
   import { jiggleMode } from '$lib/stores/jiggle';
   import { sessionStore } from '$lib/stores/session';
+  import { currentPage } from '$lib/stores/pageStore';
   import Card from '$lib/components/Nav/Card.svelte';
   import InlineFolderExpand from '$lib/components/Nav/InlineFolderExpand.svelte';
   import JiggleHost from '$lib/components/Nav/JiggleHost.svelte';
+  import PageDots from '$lib/components/Nav/PageDots.svelte';
   import EmptyState from '$lib/components/Nav/EmptyState.svelte';
   import Skeleton from '$lib/components/ui/Skeleton.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -17,6 +26,7 @@
   import { t } from '$lib/i18n/store';
   import type { Card as CardType } from '$lib/types/card';
   import { dragGrid, type DragDropInfo, type DropIntent } from '$lib/util/dragGrid';
+  import { chunk } from '$lib/util/paginate';
 
   function describeError(e: unknown): string {
     if (e instanceof ApiError) return e.message ?? e.code;
@@ -32,6 +42,86 @@
 
   /** Currently expanded folder. null = none. */
   let openFolderId = $state<number | null>(null);
+
+  // ──────── Pager (P1: horizontal pages + dot indicator) ────────
+
+  /** Page size by viewport breakpoint. Mirrors clue §1: desktop 7×5, narrow 4×6, mobile 4×5. */
+  function pageSizeForViewport(w: number): number {
+    if (w <= 500) return 20; // mobile 4×5
+    if (w <= 900) return 24; // narrow 4×6
+    return 35; // desktop 7×5
+  }
+
+  // SSR-safe initial width; updated to real value on mount.
+  let viewportWidth = $state(1280);
+  const pageSize = $derived(pageSizeForViewport(viewportWidth));
+
+  onMount(() => {
+    viewportWidth = window.innerWidth;
+    const onResize = () => {
+      viewportWidth = window.innerWidth;
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  });
+
+  /** Pages of root cards, never empty (chunk yields at least one page). */
+  const pages = $derived(chunk($rootCards, pageSize));
+  const pageCount = $derived(pages.length);
+
+  /** Clamp currentPage to valid range whenever pageCount shrinks. */
+  $effect(() => {
+    if ($currentPage > pageCount - 1) currentPage.setPage(Math.max(0, pageCount - 1));
+  });
+
+  /** Reset to page 0 whenever site changes — old page index makes no sense in a new card set. */
+  $effect(() => {
+    void $currentSite.site?.value;
+    currentPage.reset();
+  });
+
+  /** Pager scroll container. Set when the DOM mounts; used for programmatic scrollTo. */
+  let pagerEl = $state<HTMLDivElement | null>(null);
+
+  /** Programmatically scroll to the given page. Honours scroll-snap. */
+  function scrollToPage(idx: number) {
+    if (!pagerEl) return;
+    const w = pagerEl.clientWidth;
+    pagerEl.scrollTo({ left: idx * w, behavior: 'smooth' });
+  }
+
+  /** Sync DOM scroll when currentPage changes via dot click / keyboard / etc. */
+  $effect(() => {
+    const idx = $currentPage;
+    queueMicrotask(() => scrollToPage(idx));
+  });
+
+  /** Sync currentPage when user scrolls naturally (touchpad / wheel / swipe). */
+  function onPagerScroll() {
+    if (!pagerEl) return;
+    const w = pagerEl.clientWidth;
+    if (w <= 0) return;
+    const idx = Math.round(pagerEl.scrollLeft / w);
+    if (idx !== $currentPage) currentPage.setPage(idx);
+  }
+
+  /** Keyboard ←/→ / PageUp / PageDown turn pages, but only when no input is focused. */
+  function onKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    )
+      return;
+    if (editDialogOpen || $hasActiveFilter) return;
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault();
+      currentPage.prev();
+    } else if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      e.preventDefault();
+      currentPage.next(pageCount - 1);
+    }
+  }
 
   const openFolder = $derived(
     openFolderId == null ? null : ($rootCards.find((c) => c.id === openFolderId) ?? null)
@@ -304,30 +394,47 @@
 
     <JiggleHost>
       <section class="grid-wrap">
-        <div class="grid" data-zone="root">
-          {#each $rootCards as card (card.id)}
-            <Card
-              {card}
-              folderChildren={card.kind === 'folder' ? (folderChildrenById.get(card.id) ?? []) : []}
-              {onOpenFolder}
-              onEdit={openEdit}
-            />
-          {/each}
-          {#if $jiggleMode && $sessionStore.authed}
-            <div class="add-cell">
-              <NewItemAffordance onClick={() => openCreate(null)} />
+        <div
+          class="pager"
+          bind:this={pagerEl}
+          onscroll={onPagerScroll}
+          aria-roledescription="paginated grid"
+        >
+          {#each pages as pageCards, pageIdx (pageIdx)}
+            <div class="page">
+              <div class="grid" data-zone="root">
+                {#each pageCards as card (card.id)}
+                  <Card
+                    {card}
+                    folderChildren={card.kind === 'folder'
+                      ? (folderChildrenById.get(card.id) ?? [])
+                      : []}
+                    {onOpenFolder}
+                    onEdit={openEdit}
+                  />
+                {/each}
+                {#if pageIdx === pages.length - 1 && $jiggleMode && $sessionStore.authed}
+                  <div class="add-cell">
+                    <NewItemAffordance onClick={() => openCreate(null)} />
+                  </div>
+                {/if}
+              </div>
             </div>
-          {/if}
+          {/each}
         </div>
+        <PageDots {pageCount} currentPage={$currentPage} onSelect={(i) => currentPage.setPage(i)} />
       </section>
     </JiggleHost>
   </div>
 {/if}
 
+<svelte:window onkeydown={onKeydown} />
+
 <ItemEditDialog
   bind:open={editDialogOpen}
   target={editTarget}
   defaultParentId={createForParentId}
+  onCreated={() => currentPage.setPage(pageCount - 1)}
 />
 
 <style lang="scss">
@@ -348,6 +455,38 @@
   }
   .grid-wrap {
     width: 100%;
+  }
+  /* Horizontal scroll-snap pager. Each .page is exactly 100% wide so
+   * scroll-snap latches to a whole page at a time. The browser's native
+   * smooth scroll handles the animation; we drive it programmatically
+   * via scrollTo() when dot/keyboard input changes the page index. */
+  .pager {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none; /* hide the horizontal scrollbar — dots are the indicator */
+    display: flex;
+    flex-direction: row;
+  }
+  .pager::-webkit-scrollbar {
+    display: none;
+  }
+  .page {
+    flex: 0 0 100%;
+    width: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: var(--sp-2) 0;
+  }
+  /* While dragGrid is lifting a card, kill scroll-snap so the user's
+   * pointer-driven drag doesn't fight the browser's snap-to-page. */
+  :global(.canvas:has([data-card-id][data-dragging='true'])) .pager {
+    scroll-snap-type: none;
+    overflow-x: hidden;
   }
   .grid {
     display: grid;

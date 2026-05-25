@@ -17,9 +17,12 @@
     target: Card | null;
     /** Initial parent (folder id) for create mode. */
     defaultParentId?: number | null;
+    /** Fires after a successful create + data refetch. Lets the caller
+     *  scroll the new card into view (e.g. jump pager to the last page). */
+    onCreated?: (card: Card) => void;
   }
 
-  let { open = $bindable(false), target, defaultParentId = null }: Props = $props();
+  let { open = $bindable(false), target, defaultParentId = null, onCreated }: Props = $props();
 
   // Form state
   let name = $state('');
@@ -93,6 +96,7 @@
       if (Object.keys(links).length === 0) {
         throw new Error('At least one link is required.');
       }
+      let createdCard: Card | null = null;
       if (target) {
         const patch: CardPatch = {
           name: name.trim(),
@@ -114,11 +118,12 @@
           iconValue: iconValue.trim(),
           links
         };
-        await createCard(payload);
+        createdCard = await createCard(payload);
         toast.success($t('editor.item.new') + ' ✓');
       }
-      navDataStore.refetch();
+      await navDataStore.refetch();
       open = false;
+      if (createdCard) onCreated?.(createdCard);
     } catch (e) {
       if (e instanceof ApiError) error = `${e.code}${e.message ? ': ' + e.message : ''}`;
       else if (e instanceof Error) error = e.message;
