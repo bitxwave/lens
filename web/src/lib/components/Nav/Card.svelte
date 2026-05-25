@@ -49,16 +49,14 @@
 
   function open() {
     if ($jiggleMode) {
-      // Distinguish "long-press release that just entered jiggle" from
-      // "a real click while already in jiggle". The former is the
-      // gesture's tail and must not also pop the editor; the latter is
-      // the §5.3 edit affordance.
+      // The long-press that entered jiggle ends with a pointerup that
+      // we also see as a click on the source card. Inside the grace
+      // window suppress *any* effect — neither open the folder nor
+      // pop the editor. The user's intent was "switch to edit mode",
+      // not "edit/open this card too".
       const sinceEnter = Date.now() - $jiggleEnteredAt;
       const isLongPressRelease = sinceEnter < POST_LONGPRESS_GRACE_MS;
-      if (isLongPressRelease) {
-        if (isFolder) onOpenFolder?.(card.id);
-        return;
-      }
+      if (isLongPressRelease) return;
       if (isItem) onEdit?.(card);
       else if (isFolder) onOpenFolder?.(card.id);
       return;
@@ -156,7 +154,7 @@
 >
   {#if $jiggleMode}
     <button type="button" class="x-btn" aria-label={$t('common.delete')} onclick={onDelete}>
-      ×
+      −
     </button>
   {/if}
 
