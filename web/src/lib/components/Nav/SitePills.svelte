@@ -32,6 +32,7 @@
         class="pill"
         class:active={site.value === activeValue}
         aria-pressed={site.value === activeValue}
+        tabindex={site.value === activeValue ? 0 : -1}
         onclick={() => selectSite(site.value)}
         onkeydown={(e) => onPillKeydown(e, i)}
       >
