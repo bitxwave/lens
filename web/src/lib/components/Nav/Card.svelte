@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Card } from '$lib/types/card';
   import { currentSite } from '$lib/stores/visible';
-  import { jiggleMode, jiggleEnteredAt } from '$lib/stores/jiggle';
+  import { jiggleMode } from '$lib/stores/jiggle';
   import { t } from '$lib/i18n/store';
   import { longPress } from '$lib/util/longPress';
   import { navDataStore } from '$lib/stores/navData';
@@ -42,21 +42,12 @@
     }
   }
 
-  /** ms grace window after entering jiggle, during which a click on the
-   *  same card is treated as the long-press release (no-op) rather than
-   *  a fresh "edit me" click. */
-  const POST_LONGPRESS_GRACE_MS = 350;
-
   function open() {
+    // The trailing click after the long-press that entered jiggle is
+    // swallowed in the longPress action itself (capture-phase eater),
+    // so by the time `open` runs we know this is either: a tap from
+    // outside jiggle, or a deliberate click while already in jiggle.
     if ($jiggleMode) {
-      // The long-press that entered jiggle ends with a pointerup that
-      // we also see as a click on the source card. Inside the grace
-      // window suppress *any* effect — neither open the folder nor
-      // pop the editor. The user's intent was "switch to edit mode",
-      // not "edit/open this card too".
-      const sinceEnter = Date.now() - $jiggleEnteredAt;
-      const isLongPressRelease = sinceEnter < POST_LONGPRESS_GRACE_MS;
-      if (isLongPressRelease) return;
       if (isItem) onEdit?.(card);
       else if (isFolder) onOpenFolder?.(card.id);
       return;
