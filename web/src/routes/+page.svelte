@@ -174,13 +174,21 @@
   }
 
   /** Auto-close the open folder panel as soon as the user drags one of
-   *  its children out onto the root grid. The panel + backdrop blur was
+   *  its children out of the panel rect. The panel + backdrop blur was
    *  obscuring the destination, leaving the user no way to aim at a
-   *  specific root slot. */
+   *  specific root slot.
+   *
+   *  We accept any next zone other than the open folder's own — that
+   *  covers both `next === 'root'` (cursor landed on a root card) and
+   *  `next === null` (cursor on the backdrop blur with no card under).
+   *  The folder panel's .wrap carries data-zone="folder:<id>", so a
+   *  cursor still inside the panel — including its .expand padding ring
+   *  or the title row above — keeps reading as the open folder zone and
+   *  doesn't trip this handler. */
   function onHoverZoneChange(prev: string | null, next: string | null) {
     if (openFolderId == null) return;
     const myZone = `folder:${openFolderId}`;
-    if (prev === myZone && next === 'root') {
+    if (prev === myZone && next !== myZone) {
       openFolderId = null;
     }
   }

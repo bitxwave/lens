@@ -104,7 +104,13 @@
     if (!$dragSource) onClose();
   }}
 ></div>
-<div class="wrap">
+<!-- data-zone covers the whole visual panel rect so dragGrid's hoverZone
+     stays "folder:<id>" while the cursor is anywhere inside the panel
+     (including .expand padding and the title row), not just over the
+     inner grid. Without this, a cursor in the panel-padding ring would
+     read as null/outOfZone and the +page.svelte onHoverZoneChange
+     handler would tear the panel down mid-gesture. -->
+<div class="wrap" data-zone={zoneId}>
   {#if renaming}
     <!-- svelte-ignore a11y_autofocus -->
     <input
