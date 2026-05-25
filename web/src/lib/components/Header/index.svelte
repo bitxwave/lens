@@ -1,15 +1,10 @@
 <script lang="ts">
-  import { page } from '$app/stores';
   import Brand from './Brand.svelte';
   import SearchBar from './SearchBar.svelte';
   import SiteSelect from './SiteSelect.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
   import LocaleToggle from './LocaleToggle.svelte';
   import AuthControls from './AuthControls.svelte';
-
-  // Home renders its own SitePills inline (LaunchPad clue §11.1), so the
-  // header dropdown would be a duplicate control — hide it on `/`.
-  const onHome = $derived($page.url.pathname === '/');
 </script>
 
 <header class="header">
@@ -21,7 +16,7 @@
       <SearchBar />
     </div>
     <div class="right">
-      {#if !onHome}<SiteSelect />{/if}
+      <SiteSelect />
       <ThemeToggle />
       <LocaleToggle />
       <AuthControls />

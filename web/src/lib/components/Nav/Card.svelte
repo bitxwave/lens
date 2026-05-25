@@ -368,10 +368,25 @@
     gap: 6px;
     width: 100%;
     height: 100%;
+    /* Grid items can grow past the container by their intrinsic min
+     * content size — for an <img> that is the natural pixel size of
+     * the favicon, which on a high-res icon will absolutely blow the
+     * 120x120 folder out. Pinning min-width/min-height to 0 disables
+     * that auto-expansion so each cell gets exactly 1fr. */
+    > * {
+      min-width: 0;
+      min-height: 0;
+    }
   }
   .thumb {
+    /* Use display:block so the inline baseline of <img> doesn't push
+     * the grid row down. width/height + max-* clamp the natural size
+     * of the favicon to the cell. */
+    display: block;
     width: 100%;
     height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
     background: rgba(255, 255, 255, 0.7);
     border-radius: 8px;

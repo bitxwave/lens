@@ -34,7 +34,6 @@
   "home.folder.untitled": "未命名",
   "home.folder.deleteConfirm": "删除文件夹「{{name}}」并将其中 {{count}} 项放回首页网格？",
   "home.pager.aria": "页面",
-  "home.site.aria": "站点切换",
   "home.empty.hint": "点击 + 添加第一张卡片",
 
   "error.network.offline": "无法连接服务",

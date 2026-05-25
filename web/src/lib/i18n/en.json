@@ -34,7 +34,6 @@
   "home.folder.untitled": "Untitled",
   "home.folder.deleteConfirm": "Delete folder \"{{name}}\" and release its {{count}} item(s) to the home grid?",
   "home.pager.aria": "Pages",
-  "home.site.aria": "Site switcher",
   "home.empty.hint": "Click + to add your first card",
 
   "error.network.offline": "Cannot reach server",
