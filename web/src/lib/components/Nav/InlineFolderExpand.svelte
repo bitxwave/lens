@@ -3,7 +3,12 @@
   import { onMount } from 'svelte';
   import { navDataStore } from '$lib/stores/navData';
   import { currentSite } from '$lib/stores/visible';
+  import { jiggleMode } from '$lib/stores/jiggle';
+  import { sessionStore } from '$lib/stores/session';
   import { dragSource } from '$lib/stores/dragMerge';
+  import { patchCard } from '$lib/api/cards';
+  import { toast } from '$lib/components/ui/toast';
+  import { t } from '$lib/i18n/store';
   import CardComp from './Card.svelte';
 
   interface Props {
@@ -12,6 +17,33 @@
     onEdit?: (card: Card) => void;
   }
   let { folder, onClose, onEdit }: Props = $props();
+
+  // Folder rename — only available in jiggle mode + authed.
+  let renaming = $state(false);
+  let renameValue = $state('');
+
+  function startRename() {
+    if (!$jiggleMode || !$sessionStore.authed) return;
+    renaming = true;
+    renameValue = folder.name;
+  }
+
+  async function commitRename() {
+    const next = renameValue.trim();
+    renaming = false;
+    if (!next || next === folder.name) return;
+    try {
+      const updated = await patchCard(folder.id, { name: next });
+      navDataStore.applyCardPatch(folder.id, { name: updated.name });
+    } catch {
+      toast.error($t('error.unknown'));
+      navDataStore.refetch();
+    }
+  }
+
+  function cancelRename() {
+    renaming = false;
+  }
 
   // Drag handling lives on the page-level <div use:dragGrid>. This panel
   // just renders cards inside a [data-zone] container so the action can
@@ -61,7 +93,23 @@
   }}
 ></div>
 <div class="wrap">
-  <h3 class="title">{folder.name}</h3>
+  {#if renaming}
+    <!-- svelte-ignore a11y_autofocus -->
+    <input
+      class="title-input"
+      bind:value={renameValue}
+      onkeydown={(e) => {
+        if (e.key === 'Enter') commitRename();
+        else if (e.key === 'Escape') cancelRename();
+      }}
+      onblur={commitRename}
+      autofocus
+    />
+  {:else if $jiggleMode && $sessionStore.authed}
+    <button type="button" class="title rename" onclick={startRename}>{folder.name}</button>
+  {:else}
+    <h3 class="title">{folder.name}</h3>
+  {/if}
   <section class="expand" aria-label={folder.name}>
     <div class="grid" data-zone={zoneId}>
       {#each childCards as c (c.id)}
@@ -100,11 +148,38 @@
   }
   .title {
     margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    font-family: inherit;
     font-size: var(--fs-lg);
     font-weight: var(--fw-semibold);
     color: var(--c-card-label);
     text-shadow: var(--sh-card-label);
     letter-spacing: 0.04em;
+  }
+  .title.rename {
+    cursor: text;
+  }
+  .title-input {
+    margin: 0;
+    padding: 4px 10px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    color: var(--c-text);
+    letter-spacing: 0.04em;
+    text-align: center;
+    min-width: 160px;
+    outline: none;
+  }
+  :global([data-theme='dark']) .title-input {
+    background: rgba(28, 22, 40, 0.75);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: var(--c-text);
   }
   .expand {
     position: relative;

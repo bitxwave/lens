@@ -70,12 +70,6 @@
     }
   }
 
-  function onEditClick(e: MouseEvent) {
-    // Explicit edit affordance (pencil button) only visible in jiggle.
-    e.stopPropagation();
-    if (isItem) onEdit?.(card);
-  }
-
   function onKeydown(e: KeyboardEvent) {
     if ($jiggleMode) return;
     if (e.key === 'Enter' || e.key === ' ') {
@@ -153,24 +147,6 @@
     <button type="button" class="x-btn" aria-label={$t('common.delete')} onclick={onDelete}>
       ×
     </button>
-    {#if isItem}
-      <button type="button" class="edit-btn" aria-label={$t('common.edit')} onclick={onEditClick}>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-        </svg>
-      </button>
-    {/if}
   {/if}
 
   {#if isFolder}
@@ -294,22 +270,6 @@
     color: white;
     font-size: 18px;
     line-height: 1;
-    cursor: pointer;
-    z-index: 2;
-  }
-  .edit-btn {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    border: 0;
-    background: var(--c-accent, #4a6cf7);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     cursor: pointer;
     z-index: 2;
   }
