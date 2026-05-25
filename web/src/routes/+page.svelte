@@ -173,6 +173,18 @@
     else currentPage.next(pageCount - 1);
   }
 
+  /** Auto-close the open folder panel as soon as the user drags one of
+   *  its children out onto the root grid. The panel + backdrop blur was
+   *  obscuring the destination, leaving the user no way to aim at a
+   *  specific root slot. */
+  function onHoverZoneChange(prev: string | null, next: string | null) {
+    if (openFolderId == null) return;
+    const myZone = `folder:${openFolderId}`;
+    if (prev === myZone && next === 'root') {
+      openFolderId = null;
+    }
+  }
+
   /**
    * Compute the new sort_order list for a bucket after inserting `sourceId`
    * at slot `insertAt`. Returns ReorderEntry[] for `/api/cards/reorder`.
@@ -394,6 +406,7 @@
       enabled: $jiggleMode && $sessionStore.authed,
       onSpringLoad,
       onEdgePan,
+      onHoverZoneChange,
       onDrop: handleDrop
     }}
   >

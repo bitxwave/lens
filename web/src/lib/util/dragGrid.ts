@@ -73,6 +73,13 @@ export interface DragGridOptions {
    * pager so a card can be dragged across pages.
    */
   onEdgePan?: (direction: EdgePanDirection) => void;
+  /**
+   * Fires whenever the cursor's current hover zone changes during an
+   * active drag (e.g. user drags from a folder panel out onto the
+   * root grid). Use it to react to "leaving" a zone — like closing
+   * the folder panel when the user starts dragging a card out of it.
+   */
+  onHoverZoneChange?: (prev: string | null, next: string | null) => void;
   /** Called on pointerup. Consumer commits the drop. */
   onDrop?: (info: DragDropInfo) => void;
 }
@@ -320,6 +327,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     if (!session) return;
     const prev = session.hover;
     session.hover = next;
+
+    if (prev.hoverZone !== next.hoverZone) {
+      options.onHoverZoneChange?.(prev.hoverZone, next.hoverZone);
+    }
 
     if (next.intent === 'merge' && next.target) {
       mergeCandidate.set({ id: next.target.id, kind: next.target.kind });
