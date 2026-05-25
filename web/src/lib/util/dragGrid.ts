@@ -338,8 +338,17 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       mergeCandidate.set(null);
     }
 
+    // Spring-load opens a folder under the cursor when the user is
+    // hovering it with merge intent. Restrict it to drags that started
+    // from root: once the user has lifted a card out of folder A, them
+    // brushing past folder B on the way to a root slot should NOT
+    // auto-open B and capture the drop. Cross-folder moves can still
+    // be done by releasing into root first, then re-dragging into B.
     const isSpringTarget =
-      next.intent === 'merge' && next.target?.kind === 'folder' && next.target.id != null;
+      next.intent === 'merge' &&
+      next.target?.kind === 'folder' &&
+      next.target.id != null &&
+      session.source.zone === 'root';
     const sameTarget = prev.target?.id === next.target?.id && prev.intent === next.intent;
     if (!sameTarget) cancelDwell();
     if (isSpringTarget && session.dwellTargetId !== next.target!.id) {
