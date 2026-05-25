@@ -429,10 +429,13 @@
                     onEdit={openEdit}
                   />
                 {/each}
-                {#if pageIdx === pages.length - 1 && $jiggleMode && $sessionStore.authed}
+                {#if pageIdx === pages.length - 1 && $sessionStore.authed && ($jiggleMode || $rootCards.length === 0)}
                   <div class="add-cell">
                     <NewItemAffordance onClick={() => openCreate(null)} />
                   </div>
+                  {#if $rootCards.length === 0}
+                    <p class="empty-hint">{$t('home.empty.hint')}</p>
+                  {/if}
                 {/if}
               </div>
             </div>
@@ -519,6 +522,16 @@
     display: flex;
     justify-content: center;
     align-items: flex-start;
+  }
+  /* Hint shown only when the grid is empty; spans the whole grid row so
+   * the placeholder card sits centered above its caption. */
+  .empty-hint {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--c-card-label);
+    opacity: 0.85;
+    font-size: var(--fs-sm);
+    text-align: center;
   }
   @media (max-width: 500px) {
     .add-cell {
