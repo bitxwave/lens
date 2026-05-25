@@ -93,7 +93,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--sp-3);
+    gap: var(--sp-5);
     max-height: calc(100vh - 96px);
     width: min(90vw, 720px);
     animation: wrap-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
