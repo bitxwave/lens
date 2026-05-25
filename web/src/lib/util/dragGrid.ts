@@ -54,6 +54,8 @@ export interface DragDropInfo extends DragHoverInfo {
   source: CardMeta;
 }
 
+export type EdgePanDirection = 'prev' | 'next';
+
 export interface DragGridOptions {
   /** Drag is gated on this. When false, pointerdown is a no-op. */
   enabled: boolean;
@@ -63,6 +65,14 @@ export interface DragGridOptions {
    * Consumer typically opens the folder so the user can drop inside it.
    */
   onSpringLoad?: (folderId: number) => void;
+  /**
+   * Edge-pan callback. Fires when cursor dwells within EDGE_PAN_THRESHOLD_PX
+   * of the viewport left/right edge for EDGE_PAN_DWELL_MS during an active
+   * drag, then keeps re-firing every EDGE_PAN_INTERVAL_MS until the cursor
+   * leaves the edge zone or the drag ends. Consumer typically advances the
+   * pager so a card can be dragged across pages.
+   */
+  onEdgePan?: (direction: EdgePanDirection) => void;
   /** Called on pointerup. Consumer commits the drop. */
   onDrop?: (info: DragDropInfo) => void;
 }
@@ -70,6 +80,9 @@ export interface DragGridOptions {
 const LIFT_THRESHOLD_PX = 5;
 const MERGE_INNER_FRACTION = 0.6; // inner 60% of card → merge
 const HOVER_DWELL_MS = 500;
+const EDGE_PAN_THRESHOLD_PX = 80;
+const EDGE_PAN_DWELL_MS = 600;
+const EDGE_PAN_INTERVAL_MS = 800;
 const CLONE_OPACITY = 0.88;
 const CLONE_LIFT_SCALE = 1.05;
 const CLONE_ID = '__draggrid_clone__';
@@ -88,6 +101,8 @@ interface DragSession {
   rafToken: number | null;
   dwellTimer: ReturnType<typeof setTimeout> | null;
   dwellTargetId: number | null;
+  edgePanTimer: ReturnType<typeof setTimeout> | null;
+  edgePanDirection: EdgePanDirection | null;
   hover: DragHoverInfo;
   pointerId: number;
 }
@@ -159,6 +174,8 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       rafToken: null,
       dwellTimer: null,
       dwellTargetId: null,
+      edgePanTimer: null,
+      edgePanDirection: null,
       hover: { target: null, intent: null, hoverZone: meta.zone, outOfZone: false },
       pointerId: e.pointerId
     };
@@ -198,6 +215,36 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     }
     const next = computeHover(session);
     applyHover(next);
+    applyEdgePan(detectEdgePan(cursorX));
+  }
+
+  function detectEdgePan(cursorX: number): EdgePanDirection | null {
+    if (cursorX <= EDGE_PAN_THRESHOLD_PX) return 'prev';
+    if (cursorX >= window.innerWidth - EDGE_PAN_THRESHOLD_PX) return 'next';
+    return null;
+  }
+
+  function applyEdgePan(direction: EdgePanDirection | null) {
+    if (!session) return;
+    if (direction === session.edgePanDirection) return;
+    cancelEdgePan();
+    if (!direction) return;
+    session.edgePanDirection = direction;
+    const repeat = () => {
+      if (!session || session.edgePanDirection !== direction) return;
+      options.onEdgePan?.(direction);
+      session.edgePanTimer = setTimeout(repeat, EDGE_PAN_INTERVAL_MS);
+    };
+    session.edgePanTimer = setTimeout(repeat, EDGE_PAN_DWELL_MS);
+  }
+
+  function cancelEdgePan() {
+    if (!session) return;
+    if (session.edgePanTimer) {
+      clearTimeout(session.edgePanTimer);
+      session.edgePanTimer = null;
+    }
+    session.edgePanDirection = null;
   }
 
   function liftSource(e: PointerEvent) {
@@ -328,6 +375,7 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
 
     if (s.rafToken != null) cancelAnimationFrame(s.rafToken);
     if (s.dwellTimer) clearTimeout(s.dwellTimer);
+    if (s.edgePanTimer) clearTimeout(s.edgePanTimer);
 
     if (s.clone) {
       s.clone.remove();

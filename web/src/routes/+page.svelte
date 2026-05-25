@@ -25,7 +25,12 @@
   import { ApiError } from '$lib/api/client';
   import { t } from '$lib/i18n/store';
   import type { Card as CardType } from '$lib/types/card';
-  import { dragGrid, type DragDropInfo, type DropIntent } from '$lib/util/dragGrid';
+  import {
+    dragGrid,
+    type DragDropInfo,
+    type DropIntent,
+    type EdgePanDirection
+  } from '$lib/util/dragGrid';
   import { chunk } from '$lib/util/paginate';
 
   function describeError(e: unknown): string {
@@ -159,6 +164,13 @@
 
   function onSpringLoad(folderId: number) {
     if (openFolderId !== folderId) openFolderId = folderId;
+  }
+
+  /** Drag-to-edge auto pager turn (P2). dragGrid fires this while a card
+   *  is held near the viewport edge during an active drag. */
+  function onEdgePan(direction: EdgePanDirection) {
+    if (direction === 'prev') currentPage.prev();
+    else currentPage.next(pageCount - 1);
   }
 
   /**
@@ -381,6 +393,7 @@
     use:dragGrid={{
       enabled: $jiggleMode && $sessionStore.authed,
       onSpringLoad,
+      onEdgePan,
       onDrop: handleDrop
     }}
   >
@@ -483,10 +496,13 @@
     padding: var(--sp-2) 0;
   }
   /* While dragGrid is lifting a card, kill scroll-snap so the user's
-   * pointer-driven drag doesn't fight the browser's snap-to-page. */
+   * pointer-driven drag doesn't fight the browser's snap-to-page.
+   * overflow-x stays auto so programmatic scrollTo() (driven by the
+   * edge-pan dwell in dragGrid) can still turn pages. The pointer
+   * itself is captured by dragGrid, so the user can't accidentally
+   * scroll the pager with wheel/touch during the drag. */
   :global(.canvas:has([data-card-id][data-dragging='true'])) .pager {
     scroll-snap-type: none;
-    overflow-x: hidden;
   }
   .grid {
     display: grid;
