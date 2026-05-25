@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Card } from '$lib/types/card';
   import { currentSite } from '$lib/stores/visible';
-  import { jiggleMode } from '$lib/stores/jiggle';
+  import { jiggleMode, jiggleEnteredAt } from '$lib/stores/jiggle';
   import { t } from '$lib/i18n/store';
   import { longPress } from '$lib/util/longPress';
   import { navDataStore } from '$lib/stores/navData';
@@ -42,13 +42,25 @@
     }
   }
 
+  /** ms grace window after entering jiggle, during which a click on the
+   *  same card is treated as the long-press release (no-op) rather than
+   *  a fresh "edit me" click. */
+  const POST_LONGPRESS_GRACE_MS = 350;
+
   function open() {
     if ($jiggleMode) {
-      // In jiggle/edit mode, single-click on an item is a no-op — we
-      // don't want a long-press release to immediately pop the editor
-      // (the user is in editing mode, not launching/editing one item).
-      // Folders still expand on click so the user can rearrange inside.
-      if (isFolder) onOpenFolder?.(card.id);
+      // Distinguish "long-press release that just entered jiggle" from
+      // "a real click while already in jiggle". The former is the
+      // gesture's tail and must not also pop the editor; the latter is
+      // the §5.3 edit affordance.
+      const sinceEnter = Date.now() - $jiggleEnteredAt;
+      const isLongPressRelease = sinceEnter < POST_LONGPRESS_GRACE_MS;
+      if (isLongPressRelease) {
+        if (isFolder) onOpenFolder?.(card.id);
+        return;
+      }
+      if (isItem) onEdit?.(card);
+      else if (isFolder) onOpenFolder?.(card.id);
       return;
     }
     if (isItem && url) {

@@ -6,6 +6,11 @@ import { sessionStore } from './session';
 
 const { subscribe, set } = writable<boolean>(false);
 
+// Wall-clock timestamp of the most recent enter(). Cards read this to
+// distinguish "long-press release on the same card" (no-op) from a
+// genuine click while already in jiggle (edit dialog) — see Card.svelte.
+const enteredAtStore = writable<number>(0);
+
 let escAttached = false;
 
 function attachEscOnce() {
@@ -20,6 +25,8 @@ function attachEscOnce() {
 
 attachEscOnce();
 
+export const jiggleEnteredAt = { subscribe: enteredAtStore.subscribe };
+
 export const jiggleMode = {
   subscribe,
   /**
@@ -31,10 +38,12 @@ export const jiggleMode = {
     const session = get(sessionStore);
     if (!session.authed) return false;
     set(true);
+    enteredAtStore.set(Date.now());
     return true;
   },
   exit() {
     set(false);
+    enteredAtStore.set(0);
   },
   /** Test-only: read sync. */
   _peek: () => get({ subscribe })
