@@ -259,6 +259,17 @@
     transform-origin: center;
     cursor: inherit;
   }
+  /* Phase-stagger: avoid every card jiggling in lock-step (LaunchPad
+   * clue §4 "each card's phase offset"). Three offsets across 0/+80/
+   * +160 ms cover the 250 ms period nicely. */
+  .cell.jiggle:nth-child(3n + 2) .card,
+  .cell.jiggle:nth-child(3n + 2) .folder {
+    animation-delay: -80ms;
+  }
+  .cell.jiggle:nth-child(3n) .card,
+  .cell.jiggle:nth-child(3n) .folder {
+    animation-delay: -160ms;
+  }
   /* Visual cue for "release here to merge / reparent". The hover
    * threshold (500ms) flips this on by setting the cell class. */
   .cell.merge-target .card,
@@ -311,10 +322,9 @@
     border-radius: 22px;
     box-shadow: var(--sh-card);
     cursor: pointer;
-    transition: box-shadow var(--tr-base);
-    &:hover:not(:disabled) {
-      box-shadow: var(--sh-card-hover);
-    }
+    transition:
+      box-shadow var(--tr-base),
+      transform var(--tr-base);
     &:disabled {
       opacity: 0.55;
       cursor: not-allowed;
@@ -325,6 +335,13 @@
       object-fit: contain;
       border-radius: 12px;
     }
+  }
+  /* Hover lift only outside jiggle (jiggle owns the transform with its
+   * own animation; an extra translate would fight the rotate keyframe). */
+  .cell:not(.jiggle) .card:hover:not(:disabled),
+  .cell:not(.jiggle) .folder:hover {
+    box-shadow: var(--sh-card-hover);
+    transform: translateY(-2px);
   }
   .folder {
     width: 120px;
@@ -337,6 +354,9 @@
     cursor: pointer;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    transition:
+      box-shadow var(--tr-base),
+      transform var(--tr-base);
   }
   :global([data-theme='dark']) .folder {
     background: rgba(255, 255, 255, 0.08);
