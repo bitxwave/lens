@@ -88,6 +88,10 @@
 
   let renaming = $state(false);
   let renameValue = $state('');
+  // Guard against onblur firing a second commit right after Enter — the
+  // input unmounts in the same tick but onblur still arrives. A second
+  // concurrent PATCH races the first for the SQLite write lock and 500s.
+  let committing = $state(false);
 
   function startRename(e: MouseEvent) {
     e.stopPropagation();
@@ -97,19 +101,26 @@
   }
 
   async function commitRename() {
+    if (committing) return;
+    committing = true;
     const next = renameValue.trim();
     renaming = false;
-    if (!next || next === card.name) return;
     try {
-      const updated = await patchCard(card.id, { name: next });
-      navDataStore.applyCardPatch(card.id, { name: updated.name });
+      if (next && next !== card.name) {
+        const updated = await patchCard(card.id, { name: next });
+        navDataStore.applyCardPatch(card.id, { name: updated.name });
+      }
     } catch {
       toast.error($t('error.unknown'));
       navDataStore.refetch();
+    } finally {
+      committing = false;
     }
   }
 
   function cancelRename() {
+    // Reset the buffer so the trailing onblur sees "unchanged" and no-ops.
+    renameValue = card.name;
     renaming = false;
   }
 

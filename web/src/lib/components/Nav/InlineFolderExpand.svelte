@@ -21,6 +21,11 @@
   // Folder rename — only available in jiggle mode + authed.
   let renaming = $state(false);
   let renameValue = $state('');
+  // Guard against the trailing onblur firing commitRename a second time
+  // after Enter already submitted (the input unmounts in the same tick;
+  // onblur still arrives). A second concurrent PATCH would race the
+  // first one for the SQLite write lock and 500.
+  let committing = $state(false);
 
   function startRename() {
     if (!$jiggleMode || !$sessionStore.authed) return;
@@ -29,19 +34,26 @@
   }
 
   async function commitRename() {
+    if (committing) return;
+    committing = true;
     const next = renameValue.trim();
     renaming = false;
-    if (!next || next === folder.name) return;
     try {
-      const updated = await patchCard(folder.id, { name: next });
-      navDataStore.applyCardPatch(folder.id, { name: updated.name });
+      if (next && next !== folder.name) {
+        const updated = await patchCard(folder.id, { name: next });
+        navDataStore.applyCardPatch(folder.id, { name: updated.name });
+      }
     } catch {
       toast.error($t('error.unknown'));
       navDataStore.refetch();
+    } finally {
+      committing = false;
     }
   }
 
   function cancelRename() {
+    // Reset the buffer so the trailing onblur sees "unchanged" and no-ops.
+    renameValue = folder.name;
     renaming = false;
   }
 
