@@ -142,7 +142,15 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
 
   function cellFromEvent(e: PointerEvent): HTMLElement | null {
     if (!(e.target instanceof Element)) return null;
-    const cell = e.target.closest('[data-card-id]');
+    // Only the main .card / .folder button (or its <img> child) starts a
+    // drag. Other buttons inside the cell — the delete −, the rename
+    // label, the rename input — want their own click semantics, so we
+    // bail here. Without this guard pointerdown on those controls would
+    // start a drag session and the preventDefault() that follows
+    // suppresses their click.
+    const handle = e.target.closest('button.card, button.folder');
+    if (!handle) return null;
+    const cell = handle.closest('[data-card-id]');
     if (!(cell instanceof HTMLElement)) return null;
     if (!node.contains(cell)) return null;
     return cell;
