@@ -5,7 +5,7 @@
   import { t } from '$lib/i18n/store';
   import { longPress } from '$lib/util/longPress';
   import { navDataStore } from '$lib/stores/navData';
-  import { deleteCard, patchCard } from '$lib/api/cards';
+  import { deleteCard } from '$lib/api/cards';
   import { toast } from '$lib/components/ui/toast';
   import { mergeCandidate } from '$lib/stores/dragMerge';
 
@@ -84,44 +84,6 @@
     }
   }
 
-  let renaming = $state(false);
-  let renameValue = $state('');
-  // Guard against onblur firing a second commit right after Enter — the
-  // input unmounts in the same tick but onblur still arrives. A second
-  // concurrent PATCH races the first for the SQLite write lock and 500s.
-  let committing = $state(false);
-
-  function startRename(e: MouseEvent) {
-    e.stopPropagation();
-    if (!isFolder) return;
-    renaming = true;
-    renameValue = card.name;
-  }
-
-  async function commitRename() {
-    if (committing) return;
-    committing = true;
-    const next = renameValue.trim();
-    renaming = false;
-    try {
-      if (next && next !== card.name) {
-        const updated = await patchCard(card.id, { name: next });
-        navDataStore.applyCardPatch(card.id, { name: updated.name });
-      }
-    } catch {
-      toast.error($t('error.unknown'));
-      navDataStore.refetch();
-    } finally {
-      committing = false;
-    }
-  }
-
-  function cancelRename() {
-    // Reset the buffer so the trailing onblur sees "unchanged" and no-ops.
-    renameValue = card.name;
-    renaming = false;
-  }
-
   async function onDelete(e: MouseEvent) {
     e.stopPropagation();
     if (isFolder) {
@@ -184,23 +146,7 @@
     </button>
   {/if}
 
-  {#if isFolder && $jiggleMode && renaming}
-    <!-- svelte-ignore a11y_autofocus -->
-    <input
-      class="rename-input"
-      bind:value={renameValue}
-      onkeydown={(e) => {
-        if (e.key === 'Enter') commitRename();
-        else if (e.key === 'Escape') cancelRename();
-      }}
-      onblur={commitRename}
-      autofocus
-    />
-  {:else if isFolder && $jiggleMode}
-    <button type="button" class="label rename" onclick={startRename}>{card.name}</button>
-  {:else}
-    <span class="label">{card.name}</span>
-  {/if}
+  <span class="label">{card.name}</span>
 </div>
 
 <style lang="scss">
@@ -376,17 +322,6 @@
     background: transparent;
     border: 0;
     padding: 0;
-  }
-  .label.rename {
-    cursor: text;
-  }
-  .rename-input {
-    font-size: 14px;
-    text-align: center;
-    width: 110px;
-    border: 1px solid var(--c-border, #999);
-    border-radius: 6px;
-    padding: 2px 6px;
   }
   @media (max-width: 500px) {
     .cell {
