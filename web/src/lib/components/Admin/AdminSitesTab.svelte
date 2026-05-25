@@ -16,8 +16,9 @@
   });
   const linkCountBySite = $derived.by(() => {
     const map = new Map<string, number>();
-    for (const it of $navDataStore.bundle?.items ?? []) {
-      for (const k of Object.keys(it.links)) {
+    for (const c of $navDataStore.bundle?.cards ?? []) {
+      if (c.kind !== 'item' || !c.links) continue;
+      for (const k of Object.keys(c.links)) {
         map.set(k, (map.get(k) ?? 0) + 1);
       }
     }
@@ -84,9 +85,7 @@
     if (busy) return;
     const count = linkCountBySite.get(s.value) ?? 0;
     if (count > 0) {
-      toast.error(
-        `Site "${s.name}" is referenced by ${count} item link(s). Remove those first.`
-      );
+      toast.error(`Site "${s.name}" is referenced by ${count} item link(s). Remove those first.`);
       return;
     }
     if (!confirm(`Delete site "${s.name}"?`)) return;
@@ -143,8 +142,8 @@
     {/if}
   </header>
   <p class="hint">
-    A "site" is a per-item link target (e.g. <code>shanghai</code>, <code>beijing</code>). Each
-    nav item can have one URL per site.
+    A "site" is a per-item link target (e.g. <code>shanghai</code>, <code>beijing</code>). Each nav
+    item can have one URL per site.
   </p>
 
   {#if creating}

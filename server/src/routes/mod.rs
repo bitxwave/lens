@@ -1,12 +1,11 @@
 use axum::Router;
 
 pub mod auth;
+pub mod cards;
 pub mod config;
 pub mod favicon;
-pub mod groups;
 pub mod health;
 pub mod icons;
-pub mod items;
 pub mod nav;
 pub mod sites;
 
@@ -21,8 +20,7 @@ pub fn api(state: AppState) -> Router {
                 .merge(nav::router())
                 .merge(auth::router())
                 .merge(config::router())
-                .merge(items::router())
-                .merge(groups::router())
+                .merge(cards::router())
                 .merge(sites::router())
                 .merge(icons::router())
                 .merge(favicon::router()),

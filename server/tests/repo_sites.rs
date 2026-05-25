@@ -1,5 +1,5 @@
 use navsrv::db::connect_in_memory;
-use navsrv::dto::{GroupPayload, IconKind, ItemPayload, SitePatch, SitePayload};
+use navsrv::dto::{CardKind, CardPayload, IconKind, SitePatch, SitePayload};
 use navsrv::error::AppError;
 use navsrv::repo::{NavRepo, SqlxNavRepo};
 
@@ -12,7 +12,6 @@ async fn create_list_patch_delete_site() {
         .create_site(SitePayload {
             value: "shangHai".into(),
             name: "上海".into(),
-            name_i18n: Some(serde_json::json!({"en": "Shanghai"})),
             is_default: true,
         })
         .await
@@ -24,7 +23,6 @@ async fn create_list_patch_delete_site() {
         .create_site(SitePayload {
             value: "beiJing".into(),
             name: "北京".into(),
-            name_i18n: None,
             is_default: false,
         })
         .await
@@ -56,7 +54,6 @@ async fn unique_value_constraint_returns_conflict() {
     repo.create_site(SitePayload {
         value: "x".into(),
         name: "X".into(),
-        name_i18n: None,
         is_default: false,
     })
     .await
@@ -65,7 +62,6 @@ async fn unique_value_constraint_returns_conflict() {
         .create_site(SitePayload {
             value: "x".into(),
             name: "Y".into(),
-            name_i18n: None,
             is_default: false,
         })
         .await
@@ -74,37 +70,27 @@ async fn unique_value_constraint_returns_conflict() {
 }
 
 #[tokio::test]
-async fn delete_site_referenced_by_item_returns_conflict() {
+async fn delete_site_referenced_by_card_link_returns_conflict() {
     let pool = connect_in_memory().await.unwrap();
     let repo = SqlxNavRepo::new(pool);
-    let g = repo
-        .create_group(GroupPayload {
-            slug: "g".into(),
-            name: "G".into(),
-            name_i18n: None,
-            collapsed_default: false,
-        })
-        .await
-        .unwrap();
     let s = repo
         .create_site(SitePayload {
             value: "siteA".into(),
             name: "A".into(),
-            name_i18n: None,
             is_default: true,
         })
         .await
         .unwrap();
     let mut links = std::collections::BTreeMap::new();
     links.insert("siteA".into(), "http://x".into());
-    repo.create_item(ItemPayload {
-        group_id: Some(g.id),
+    repo.create_card(CardPayload {
+        kind: CardKind::Item,
+        parent_id: None,
         name: "I".into(),
-        name_i18n: None,
+        slug: None,
+        icon_kind: Some(IconKind::Asset),
+        icon_value: Some("x.png".into()),
         description: None,
-        description_i18n: None,
-        icon_kind: IconKind::Asset,
-        icon_value: "x.png".into(),
         links,
     })
     .await

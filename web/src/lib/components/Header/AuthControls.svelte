@@ -3,7 +3,6 @@
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import LoginDialog from '$lib/components/Editor/LoginDialog.svelte';
   import ChangePasswordDialog from '$lib/components/Editor/ChangePasswordDialog.svelte';
-  import EditToggle from './EditToggle.svelte';
   import { goto } from '$app/navigation';
   import { sessionStore } from '$lib/stores/session';
   import { t } from '$lib/i18n/store';
@@ -17,7 +16,6 @@
 </script>
 
 {#if $sessionStore.authed}
-  <EditToggle />
   <IconButton label="Admin" onclick={() => goto('/admin')}>
     <svg
       width="18"

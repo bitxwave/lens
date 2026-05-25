@@ -21,7 +21,6 @@
   "auth.login.error.bad_password": "密码错误",
   "auth.login.error.rate_limited": "尝试过于频繁，稍后再试",
 
-  "nav.favorites.title": "收藏",
   "nav.empty.search": "没有匹配的导航项",
   "nav.empty.search.hint": "尝试清除筛选或换个关键词",
   "nav.empty.data": "暂无导航数据",
@@ -29,6 +28,11 @@
 
   "editor.item.deleteConfirm": "确认删除「{{name}}」？",
   "editor.item.new": "新建导航项",
+  "common.deleteConfirmGeneric": "确认删除「{{name}}」？",
+
+  "home.editMode.signInRequired": "登录后才能进入编辑模式",
+  "home.folder.untitled": "未命名",
+  "home.folder.deleteConfirm": "删除文件夹「{{name}}」并将其中 {{count}} 项放回首页网格？",
 
   "error.network.offline": "无法连接服务",
   "error.network.retry": "重试",

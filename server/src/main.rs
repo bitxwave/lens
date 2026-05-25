@@ -26,6 +26,9 @@ async fn main() -> anyhow::Result<()> {
 
     let pool = connect(&settings.db_url()).await.context("db connect")?;
     migrate(&pool).await.context("migrate")?;
+    navsrv::services::legacy_migrate::migrate_if_needed(&pool)
+        .await
+        .context("legacy_migrate")?;
 
     let nav = Arc::new(SqlxNavRepo::new(pool.clone()));
     let cfg = Arc::new(SqlxConfigRepo::new(pool.clone()));

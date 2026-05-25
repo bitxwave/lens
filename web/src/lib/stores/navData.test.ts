@@ -16,12 +16,10 @@ const sampleBundle = {
     siteCopyright: '©',
     siteIcp: null,
     sitePolice: null,
-    defaultTheme: 'system' as const,
-    layoutMode: 'grouped' as const
+    defaultTheme: 'system' as const
   },
   sites: [],
-  groups: [],
-  items: []
+  cards: []
 };
 
 describe('navDataStore', () => {
@@ -49,17 +47,16 @@ describe('navDataStore', () => {
     expect(get(navDataStore).error).toContain('schema_mismatch');
   });
 
-  it('applyItemPatch updates an item locally', () => {
+  it('applyCardPatch updates a card locally', () => {
     navDataStore.setBundle({
       ...sampleBundle,
-      items: [
+      cards: [
         {
           id: 1,
-          groupId: null,
+          kind: 'item',
+          parentId: null,
           name: 'old',
-          nameI18n: null,
           description: null,
-          descriptionI18n: null,
           iconKind: 'asset',
           iconValue: 'x.png',
           sortOrder: 0,
@@ -69,8 +66,8 @@ describe('navDataStore', () => {
         }
       ]
     });
-    navDataStore.applyItemPatch(1, { name: 'new' });
-    const items = get(navDataStore).bundle?.items;
-    expect(items?.[0]?.name).toBe('new');
+    navDataStore.applyCardPatch(1, { name: 'new' });
+    const cards = get(navDataStore).bundle?.cards;
+    expect(cards?.[0]?.name).toBe('new');
   });
 });

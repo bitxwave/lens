@@ -1,47 +1,18 @@
 import { z } from 'zod';
+import { CardSchema, IconKindSchema, type Card, type IconKind } from './card';
 
-// Discriminator for icon source
-export const IconKindSchema = z.enum(['asset', 'url', 'auto-favicon']);
-export type IconKind = z.infer<typeof IconKindSchema>;
-
-// Optional i18n map: { en?: string, ... }; preserved as raw JSON since locale set is open.
-const I18nMap = z.record(z.string(), z.string()).nullable().optional();
+// Re-export icon types for back-compat with consumers that import from $lib/types/nav.
+export { IconKindSchema };
+export type { IconKind };
 
 export const SiteSchema = z.object({
   id: z.number().int(),
   value: z.string(),
   name: z.string(),
-  nameI18n: I18nMap,
   sortOrder: z.number().int(),
   isDefault: z.boolean()
 });
 export type Site = z.infer<typeof SiteSchema>;
-
-export const GroupSchema = z.object({
-  id: z.number().int(),
-  slug: z.string(),
-  name: z.string(),
-  nameI18n: I18nMap,
-  sortOrder: z.number().int(),
-  collapsedDefault: z.boolean()
-});
-export type Group = z.infer<typeof GroupSchema>;
-
-export const ItemSchema = z.object({
-  id: z.number().int(),
-  groupId: z.number().int().nullable(),
-  name: z.string(),
-  nameI18n: I18nMap,
-  description: z.string().nullable().optional(),
-  descriptionI18n: I18nMap,
-  iconKind: IconKindSchema,
-  iconValue: z.string(),
-  sortOrder: z.number().int(),
-  links: z.record(z.string(), z.string()),
-  createdAt: z.number().int(),
-  updatedAt: z.number().int()
-});
-export type Item = z.infer<typeof ItemSchema>;
 
 export const LinkSchema = z.object({
   text: z.string(),
@@ -55,9 +26,7 @@ export const MetaSchema = z.object({
   siteCopyright: z.string(),
   siteIcp: LinkSchema.nullable(),
   sitePolice: LinkSchema.nullable(),
-  defaultTheme: z.enum(['system', 'light', 'dark']),
-  /** "grouped" = render group sections; "flat" = single grid (legacy) */
-  layoutMode: z.enum(['grouped', 'flat']).catch('grouped')
+  defaultTheme: z.enum(['system', 'light', 'dark'])
 });
 export type Meta = z.infer<typeof MetaSchema>;
 
@@ -65,10 +34,11 @@ export const NavBundleSchema = z.object({
   schemaVersion: z.literal(1),
   meta: MetaSchema,
   sites: z.array(SiteSchema),
-  groups: z.array(GroupSchema),
-  items: z.array(ItemSchema)
+  cards: z.array(CardSchema)
 });
 export type NavBundle = z.infer<typeof NavBundleSchema>;
+
+export type { Card };
 
 // Auth response
 export const AuthMeSchema = z.object({ authenticated: z.boolean() });

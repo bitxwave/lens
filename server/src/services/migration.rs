@@ -12,7 +12,9 @@ struct BootstrapDoc {
     _schema_version: i64,
     meta: BootstrapMeta,
     sites: Vec<BootstrapSite>,
+    #[serde(default)]
     groups: Vec<BootstrapGroup>,
+    #[serde(default)]
     items: Vec<BootstrapItem>,
 }
 
@@ -37,8 +39,6 @@ struct BootstrapSite {
     value: String,
     name: String,
     #[serde(default)]
-    name_i18n: Option<serde_json::Value>,
-    #[serde(default)]
     is_default: bool,
     #[serde(default)]
     #[allow(dead_code)]
@@ -50,19 +50,13 @@ struct BootstrapGroup {
     slug: String,
     name: String,
     #[serde(default)]
-    name_i18n: Option<serde_json::Value>,
-    #[serde(default)]
     #[allow(dead_code)]
     sort_order: i64,
-    #[serde(default)]
-    collapsed_default: bool,
 }
 
 #[derive(Deserialize)]
 struct BootstrapItem {
     name: String,
-    #[serde(default)]
-    name_i18n: Option<serde_json::Value>,
     #[serde(rename = "groupSlug")]
     group_slug: Option<String>,
     #[serde(rename = "iconKind")]
@@ -74,8 +68,8 @@ struct BootstrapItem {
 }
 
 pub async fn seed_if_empty(nav: Arc<dyn NavRepo>, config: Arc<dyn ConfigRepo>) -> Result<()> {
-    let (sites, _, items) = nav.get_bundle().await?;
-    if !sites.is_empty() || !items.is_empty() {
+    let (sites, cards) = nav.get_bundle().await?;
+    if !sites.is_empty() || !cards.is_empty() {
         return Ok(());
     }
     let doc: BootstrapDoc =
@@ -108,37 +102,42 @@ pub async fn seed_if_empty(nav: Arc<dyn NavRepo>, config: Arc<dyn ConfigRepo>) -
         nav.create_site(SitePayload {
             value: s.value,
             name: s.name,
-            name_i18n: s.name_i18n,
             is_default: s.is_default,
         })
         .await?;
     }
-    // Groups (track id by slug)
-    let mut group_id_by_slug = std::collections::HashMap::new();
+
+    // Folders (track new card id by slug).
+    let mut folder_id_by_slug = std::collections::HashMap::new();
     for g in doc.groups {
-        let created = nav
-            .create_group(GroupPayload {
-                slug: g.slug.clone(),
+        let folder = nav
+            .create_card(CardPayload {
+                kind: CardKind::Folder,
+                parent_id: None,
                 name: g.name,
-                name_i18n: g.name_i18n,
-                collapsed_default: g.collapsed_default,
+                slug: Some(g.slug.clone()),
+                icon_kind: None,
+                icon_value: None,
+                description: None,
+                links: Default::default(),
             })
             .await?;
-        group_id_by_slug.insert(g.slug, created.id);
+        folder_id_by_slug.insert(g.slug, folder.id);
     }
+
     // Items
     for it in doc.items {
-        let group_id = it
+        let parent_id = it
             .group_slug
-            .and_then(|s| group_id_by_slug.get(&s).copied());
-        nav.create_item(ItemPayload {
-            group_id,
+            .and_then(|s| folder_id_by_slug.get(&s).copied());
+        nav.create_card(CardPayload {
+            kind: CardKind::Item,
+            parent_id,
             name: it.name,
-            name_i18n: it.name_i18n,
+            slug: None,
+            icon_kind: Some(it.icon_kind),
+            icon_value: Some(it.icon_value),
             description: None,
-            description_i18n: None,
-            icon_kind: it.icon_kind,
-            icon_value: it.icon_value,
             links: it.links,
         })
         .await?;

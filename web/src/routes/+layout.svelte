@@ -2,14 +2,14 @@
   import Header from '$lib/components/Header/index.svelte';
   import Footer from '$lib/components/Footer/index.svelte';
   import ToastViewport from '$lib/components/ui/ToastViewport.svelte';
-  import { editModeStore } from '$lib/stores/editMode';
+  import { jiggleMode } from '$lib/stores/jiggle';
   import '$lib/design/theme';
   import '../app.scss';
 
   let { children } = $props();
 </script>
 
-<svelte:body class:edit-mode={$editModeStore} />
+<svelte:body class:jiggle-mode={$jiggleMode} />
 
 <Header />
 
@@ -34,13 +34,13 @@
     box-sizing: border-box;
   }
 
-  :global(body.edit-mode main) {
+  :global(body.jiggle-mode main) {
     outline: 2px dashed var(--c-accent);
     outline-offset: var(--sp-2);
     border-radius: var(--rd-md);
   }
 
-  :global(body.edit-mode)::before {
+  :global(body.jiggle-mode)::before {
     content: '';
     position: fixed;
     top: 0;

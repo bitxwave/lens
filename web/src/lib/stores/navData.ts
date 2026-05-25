@@ -3,6 +3,7 @@ import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { apiClient, ApiError } from '$lib/api/client';
 import { NavBundleSchema, type NavBundle } from '$lib/types/nav';
+import type { Card } from '$lib/types/card';
 
 export interface NavDataState {
   bundle: NavBundle | null;
@@ -29,11 +30,11 @@ async function load(): Promise<void> {
   }
 }
 
-function applyItemPatch(itemId: number, patch: Partial<NavBundle['items'][number]>) {
+function applyCardPatch(cardId: number, patch: Partial<Card>) {
   update((s) => {
     if (!s.bundle) return s;
-    const items = s.bundle.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i));
-    return { ...s, bundle: { ...s.bundle, items } };
+    const cards = s.bundle.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c));
+    return { ...s, bundle: { ...s.bundle, cards } };
   });
 }
 
@@ -45,7 +46,7 @@ export const navDataStore = {
   subscribe,
   load,
   refetch: load,
-  applyItemPatch,
+  applyCardPatch,
   setBundle,
   /** Test-only: read sync */
   _peek: () => get({ subscribe })

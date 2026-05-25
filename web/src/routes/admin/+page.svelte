@@ -3,13 +3,11 @@
   import { sessionStore } from '$lib/stores/session';
   import { navDataStore } from '$lib/stores/navData';
   import AdminSiteTab from '$lib/components/Admin/AdminSiteTab.svelte';
-  import AdminGroupsTab from '$lib/components/Admin/AdminGroupsTab.svelte';
   import AdminSitesTab from '$lib/components/Admin/AdminSitesTab.svelte';
 
-  type TabId = 'site' | 'groups' | 'sites';
+  type TabId = 'site' | 'sites';
   const TABS: { id: TabId; label: string }[] = [
     { id: 'site', label: 'Site' },
-    { id: 'groups', label: 'Groups' },
     { id: 'sites', label: 'Sites' }
   ];
 
@@ -59,8 +57,6 @@
       <section class="content">
         {#if active === 'site'}
           <AdminSiteTab />
-        {:else if active === 'groups'}
-          <AdminGroupsTab />
         {:else if active === 'sites'}
           <AdminSitesTab />
         {/if}

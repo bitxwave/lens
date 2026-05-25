@@ -1,7 +1,22 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 fn zero() -> i64 {
     0
+}
+
+/// Deserialize an `Option<Option<T>>` field such that the JSON value `null`
+/// produces `Some(None)` and an absent field produces `None`. The default
+/// serde behaviour collapses both to `None`, which silently swallows
+/// PATCH semantics like `{"parentId": null}` (clear the field).
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    // If the key is present, this runs and reads either a value or null
+    // into Option<T>; we wrap the result in an outer Some so callers can
+    // tell "field present" from "field absent".
+    Deserialize::deserialize(de).map(Some)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -10,23 +25,11 @@ pub struct Site {
     pub id: i64,
     pub value: String,
     pub name: String,
-    pub name_i18n: Option<serde_json::Value>,
     pub sort_order: i64,
     pub is_default: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct Group {
-    pub id: i64,
-    pub slug: String,
-    pub name: String,
-    pub name_i18n: Option<serde_json::Value>,
-    pub sort_order: i64,
-    pub collapsed_default: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum IconKind {
     Asset,
@@ -34,19 +37,34 @@ pub enum IconKind {
     AutoFavicon,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CardKind {
+    Folder,
+    Item,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct Item {
+pub struct Card {
     pub id: i64,
-    pub group_id: Option<i64>,
-    pub name: String,
-    pub name_i18n: Option<serde_json::Value>,
-    pub description: Option<String>,
-    pub description_i18n: Option<serde_json::Value>,
-    pub icon_kind: IconKind,
-    pub icon_value: String,
+    pub kind: CardKind,
+    pub parent_id: Option<i64>,
     pub sort_order: i64,
-    pub links: std::collections::BTreeMap<String, String>, // site.value -> URL
+    pub name: String,
+    /// Folder-only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    /// Item-only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_kind: Option<IconKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Item-only; site.value -> URL.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub links: std::collections::BTreeMap<String, String>,
     #[serde(default = "zero")]
     pub created_at: i64,
     #[serde(default = "zero")]
@@ -62,9 +80,6 @@ pub struct Meta {
     pub site_icp: Option<Link>,
     pub site_police: Option<Link>,
     pub default_theme: String,
-    /// "grouped" (default) renders items inside their group sections;
-    /// "flat" renders all items in a single grid (legacy nav layout).
-    pub layout_mode: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -80,46 +95,45 @@ pub struct NavBundle {
     pub schema_version: i64,
     pub meta: Meta,
     pub sites: Vec<Site>,
-    pub groups: Vec<Group>,
-    pub items: Vec<Item>,
+    pub cards: Vec<Card>,
 }
 
 // ----- Write payloads -----
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ItemPayload {
-    pub group_id: Option<i64>,
+pub struct CardPayload {
+    pub kind: CardKind,
+    #[serde(default)]
+    pub parent_id: Option<i64>,
     pub name: String,
     #[serde(default)]
-    pub name_i18n: Option<serde_json::Value>,
+    pub slug: Option<String>,
+    #[serde(default)]
+    pub icon_kind: Option<IconKind>,
+    #[serde(default)]
+    pub icon_value: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
-    #[serde(default)]
-    pub description_i18n: Option<serde_json::Value>,
-    pub icon_kind: IconKind,
-    pub icon_value: String,
     #[serde(default)]
     pub links: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct ItemPatch {
-    #[serde(default)]
-    pub group_id: Option<Option<i64>>,
+pub struct CardPatch {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    pub name_i18n: Option<Option<serde_json::Value>>,
-    #[serde(default)]
-    pub description: Option<Option<String>>,
-    #[serde(default)]
-    pub description_i18n: Option<Option<serde_json::Value>>,
+    pub slug: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub parent_id: Option<Option<i64>>,
     #[serde(default)]
     pub icon_kind: Option<IconKind>,
     #[serde(default)]
     pub icon_value: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub description: Option<Option<String>>,
     #[serde(default)]
     pub links: Option<std::collections::BTreeMap<String, String>>,
 }
@@ -129,41 +143,29 @@ pub struct ItemPatch {
 pub struct ReorderEntry {
     pub id: i64,
     pub sort_order: i64,
+    /// `None` = root bucket (parent_id IS NULL).
     #[serde(default)]
-    pub group_id: Option<Option<i64>>,
+    pub parent_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GroupPayload {
-    pub slug: String,
+pub struct AutoFolderPayload {
+    pub source_item_id: i64,
+    pub target_item_id: i64,
     pub name: String,
-    #[serde(default)]
-    pub name_i18n: Option<serde_json::Value>,
-    #[serde(default)]
-    pub collapsed_default: bool,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct GroupPatch {
+    /// Optional folder slug; auto-generated when omitted.
     #[serde(default)]
     pub slug: Option<String>,
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub name_i18n: Option<Option<serde_json::Value>>,
-    #[serde(default)]
-    pub collapsed_default: Option<bool>,
 }
+
+// ----- Site write payloads -----
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SitePayload {
     pub value: String,
     pub name: String,
-    #[serde(default)]
-    pub name_i18n: Option<serde_json::Value>,
     #[serde(default)]
     pub is_default: bool,
 }
@@ -176,7 +178,13 @@ pub struct SitePatch {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    pub name_i18n: Option<Option<serde_json::Value>>,
-    #[serde(default)]
     pub is_default: Option<bool>,
+}
+
+/// Reorder entry for sites — sites have no parent, only sort_order.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SiteReorderEntry {
+    pub id: i64,
+    pub sort_order: i64,
 }

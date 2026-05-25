@@ -7,7 +7,7 @@ pub async fn assemble_bundle(
     nav: Arc<dyn NavRepo>,
     config: Arc<dyn ConfigRepo>,
 ) -> Result<NavBundle> {
-    let (sites, groups, items) = nav.get_bundle().await?;
+    let (sites, cards) = nav.get_bundle().await?;
 
     let cfg = config
         .get_many(&[
@@ -19,7 +19,6 @@ pub async fn assemble_bundle(
             "site_police_text",
             "site_police_url",
             "default_theme",
-            "layout_mode",
         ])
         .await?;
 
@@ -51,18 +50,12 @@ pub async fn assemble_bundle(
             .get("default_theme")
             .cloned()
             .unwrap_or_else(|| "system".into()),
-        layout_mode: cfg
-            .get("layout_mode")
-            .cloned()
-            .filter(|v| v == "flat" || v == "grouped")
-            .unwrap_or_else(|| "grouped".into()),
     };
 
     Ok(NavBundle {
         schema_version: 1,
         meta,
         sites,
-        groups,
-        items,
+        cards,
     })
 }

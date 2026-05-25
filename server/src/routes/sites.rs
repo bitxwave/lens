@@ -6,7 +6,7 @@ use axum::{
 };
 
 use crate::auth::RequireAuth;
-use crate::dto::{ReorderEntry, Site, SitePatch, SitePayload};
+use crate::dto::{Site, SitePatch, SitePayload, SiteReorderEntry};
 use crate::error::Result;
 use crate::state::AppState;
 
@@ -43,7 +43,7 @@ async fn remove(
 async fn reorder(
     _a: RequireAuth,
     State(s): State<AppState>,
-    Json(entries): Json<Vec<ReorderEntry>>,
+    Json(entries): Json<Vec<SiteReorderEntry>>,
 ) -> Result<StatusCode> {
     s.nav.reorder_sites(entries).await?;
     Ok(StatusCode::NO_CONTENT)

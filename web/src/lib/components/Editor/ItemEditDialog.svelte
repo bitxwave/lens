@@ -5,24 +5,25 @@
   import IconSourcePicker from './IconSourcePicker.svelte';
   import { t } from '$lib/i18n/store';
   import { navDataStore } from '$lib/stores/navData';
-  import { createItem, patchItem, type ItemPayload } from '$lib/api/nav';
+  import { createCard, patchCard } from '$lib/api/cards';
+  import type { CardPayload, CardPatch } from '$lib/types/card';
   import { toast } from '$lib/components/ui/toast';
   import { ApiError } from '$lib/api/client';
-  import type { Item } from '$lib/types/nav';
+  import type { Card } from '$lib/types/card';
 
   interface Props {
     open: boolean;
     /** When set, dialog is in edit mode for this item; null = create. */
-    target: Item | null;
-    /** Initial group for create mode. */
-    defaultGroupId?: number | null;
+    target: Card | null;
+    /** Initial parent (folder id) for create mode. */
+    defaultParentId?: number | null;
   }
 
-  let { open = $bindable(false), target, defaultGroupId = null }: Props = $props();
+  let { open = $bindable(false), target, defaultParentId = null }: Props = $props();
 
   // Form state
   let name = $state('');
-  let groupId = $state<number | null>(null);
+  let parentId = $state<number | null>(null);
   let iconKind = $state<'asset' | 'url' | 'auto-favicon'>('asset');
   let iconValue = $state('');
   /** Each row = (site value, url). Empty rows are dropped on submit. */
@@ -35,13 +36,16 @@
     if (open && !hydrated) {
       if (target) {
         name = target.name;
-        groupId = target.groupId;
-        iconKind = target.iconKind;
-        iconValue = target.iconValue;
-        linkRows = Object.entries(target.links).map(([siteValue, url]) => ({ siteValue, url }));
+        parentId = target.parentId ?? null;
+        iconKind = target.iconKind ?? 'asset';
+        iconValue = target.iconValue ?? '';
+        linkRows = Object.entries(target.links ?? {}).map(([siteValue, url]) => ({
+          siteValue,
+          url
+        }));
       } else {
         name = '';
-        groupId = defaultGroupId;
+        parentId = defaultParentId;
         iconKind = 'asset';
         iconValue = '';
         const firstSite = $navDataStore.bundle?.sites[0]?.value ?? '';
@@ -89,18 +93,28 @@
       if (Object.keys(links).length === 0) {
         throw new Error('At least one link is required.');
       }
-      const payload: ItemPayload = {
-        groupId,
-        name: name.trim(),
-        iconKind,
-        iconValue: iconValue.trim(),
-        links
-      };
       if (target) {
-        await patchItem(target.id, payload);
+        const patch: CardPatch = {
+          name: name.trim(),
+          iconKind,
+          iconValue: iconValue.trim(),
+          links
+        };
+        if ((target.parentId ?? null) !== parentId) {
+          patch.parentId = parentId;
+        }
+        await patchCard(target.id, patch);
         toast.success($t('common.save') + ' ✓');
       } else {
-        await createItem(payload);
+        const payload: CardPayload = {
+          kind: 'item',
+          parentId,
+          name: name.trim(),
+          iconKind,
+          iconValue: iconValue.trim(),
+          links
+        };
+        await createCard(payload);
         toast.success($t('editor.item.new') + ' ✓');
       }
       navDataStore.refetch();
@@ -114,18 +128,23 @@
     }
   }
 
-  const groupOptions = $derived($navDataStore.bundle?.groups ?? []);
+  /** Folders the user can drop this item into. */
+  const folderOptions = $derived(
+    ($navDataStore.bundle?.cards ?? [])
+      .filter((c) => c.kind === 'folder')
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+  );
 </script>
 
 <Dialog bind:open title={target ? $t('common.edit') : $t('editor.item.new')} width="md">
   <div class="form">
     <Input label={$t('common.edit') + ' — name'} bind:value={name} />
     <label class="grp">
-      <span class="lbl">Group</span>
-      <select bind:value={groupId}>
+      <span class="lbl">Folder</span>
+      <select bind:value={parentId}>
         <option value={null}>—</option>
-        {#each groupOptions as g (g.id)}
-          <option value={g.id}>{g.name}</option>
+        {#each folderOptions as f (f.id)}
+          <option value={f.id}>{f.name}</option>
         {/each}
       </select>
     </label>

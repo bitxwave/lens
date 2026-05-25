@@ -2,12 +2,12 @@
 import { derived, writable, get, type Readable } from 'svelte/store';
 import { navDataStore } from './navData';
 import { uiPrefs } from './uiPrefs';
-import type { Group, Item, Site } from '$lib/types/nav';
+import type { Site } from '$lib/types/nav';
+import type { Card } from '$lib/types/card';
 
 export const searchQuery = writable<string>('');
 
 export interface ResolvedSite {
-  /** The chosen Site object, or null if bundle empty. */
   site: Site | null;
 }
 
@@ -22,77 +22,89 @@ export const currentSite: Readable<ResolvedSite> = derived(
   }
 );
 
-export interface VisibleGroup {
-  group: Group | null; // null = "ungrouped"
-  items: Item[];
-}
-
-/**
- * Items grouped + filtered by current site and search term. Empty groups are dropped.
- */
-export const visibleSections: Readable<VisibleGroup[]> = derived(
-  [navDataStore, currentSite, searchQuery],
-  ([$nav, $cur, $q]) => {
-    const bundle = $nav.bundle;
-    if (!bundle || !$cur.site) return [];
-    const siteValue = $cur.site.value;
-    const q = $q.trim().toLowerCase();
-
-    const filtered = bundle.items
-      .filter((i) => i.links[siteValue] !== undefined)
-      .filter((i) => {
-        if (!q) return true;
-        if (i.name.toLowerCase().includes(q)) return true;
-        if (i.description && i.description.toLowerCase().includes(q)) return true;
-        return false;
-      });
-
-    const byGroup = new Map<number | null, Item[]>();
-    for (const it of filtered) {
-      const k = it.groupId ?? null;
-      const arr = byGroup.get(k) ?? [];
-      arr.push(it);
-      byGroup.set(k, arr);
-    }
-    for (const arr of byGroup.values()) arr.sort((a, b) => a.sortOrder - b.sortOrder);
-
-    const result: VisibleGroup[] = [];
-    for (const g of [...bundle.groups].sort((a, b) => a.sortOrder - b.sortOrder)) {
-      const arr = byGroup.get(g.id);
-      if (arr && arr.length) result.push({ group: g, items: arr });
-    }
-    const ungrouped = byGroup.get(null);
-    if (ungrouped && ungrouped.length) result.push({ group: null, items: ungrouped });
-    return result;
-  }
-);
-
-/** Items the user has favorited that are visible under current site. */
-export const visibleFavorites: Readable<Item[]> = derived(
-  [navDataStore, currentSite, uiPrefs],
-  ([$nav, $cur, $prefs]) => {
-    if (!$nav.bundle || !$cur.site) return [];
-    const v = $cur.site.value;
-    return $nav.bundle.items
-      .filter((i) => $prefs.favoriteItemIds.includes(i.id) && i.links[v] !== undefined)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-  }
-);
-
-/** Flat layout: all visible items in one list (no grouping). */
-export const visibleFlatItems: Readable<Item[]> = derived(visibleSections, ($sections) =>
-  $sections.flatMap((s) => s.items)
-);
-
-/** Backend-controlled layout mode (read from bundle.meta). */
-export const layoutMode: Readable<'grouped' | 'flat'> = derived(navDataStore, ($n) =>
-  $n.bundle?.meta.layoutMode === 'flat' ? 'flat' : 'grouped'
-);
-
 /** True if a search filter is active. */
 export const hasActiveFilter: Readable<boolean> = derived(
   searchQuery,
   ($q) => $q.trim().length > 0
+);
+
+function cardMatchesSite(c: Card, siteValue: string): boolean {
+  if (c.kind !== 'item') return true;
+  return Boolean(c.links && c.links[siteValue] !== undefined);
+}
+
+function cardMatchesQuery(c: Card, q: string): boolean {
+  if (!q) return true;
+  if (c.name.toLowerCase().includes(q)) return true;
+  if (c.description && c.description.toLowerCase().includes(q)) return true;
+  return false;
+}
+
+/**
+ * Top-level cards visible under the current site, in sort order.
+ * Folders survive even when their inner items don't match the active
+ * site (the folder header is always shown if it has children visible —
+ * the folder itself doesn't carry a per-site link).
+ */
+export const rootCards: Readable<Card[]> = derived([navDataStore, currentSite], ([$nav, $cur]) => {
+  const bundle = $nav.bundle;
+  if (!bundle || !$cur.site) return [];
+  const siteValue = $cur.site.value;
+
+  const all = bundle.cards;
+  // Items inside a folder filtered by site → fold up to "is this folder
+  // visible at all?" check.
+  const folderHasVisibleChild = new Map<number, boolean>();
+  for (const c of all) {
+    if (c.kind === 'item' && c.parentId != null && cardMatchesSite(c, siteValue)) {
+      folderHasVisibleChild.set(c.parentId, true);
+    }
+  }
+
+  return all
+    .filter((c) => c.parentId == null)
+    .filter((c) => {
+      if (c.kind === 'folder') {
+        return folderHasVisibleChild.get(c.id) === true;
+      }
+      return cardMatchesSite(c, siteValue);
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+});
+
+/**
+ * Children of a given folder, filtered by current site, sort order ascending.
+ */
+export function childrenOf(folderId: number): Readable<Card[]> {
+  return derived([navDataStore, currentSite], ([$nav, $cur]) => {
+    const bundle = $nav.bundle;
+    if (!bundle || !$cur.site) return [];
+    const siteValue = $cur.site.value;
+    return bundle.cards
+      .filter((c) => c.parentId === folderId)
+      .filter((c) => cardMatchesSite(c, siteValue))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  });
+}
+
+/**
+ * Search-mode flat hits: every card that matches the query AND the site.
+ * Folders are excluded — search should jump straight to items.
+ */
+export const searchHits: Readable<Card[]> = derived(
+  [navDataStore, currentSite, searchQuery],
+  ([$nav, $cur, $q]) => {
+    const bundle = $nav.bundle;
+    if (!bundle || !$cur.site) return [];
+    const q = $q.trim().toLowerCase();
+    if (!q) return [];
+    const siteValue = $cur.site.value;
+    return bundle.cards
+      .filter((c) => c.kind === 'item')
+      .filter((c) => cardMatchesSite(c, siteValue))
+      .filter((c) => cardMatchesQuery(c, q))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }
 );
 
 export function clearFilters() {
@@ -100,6 +112,6 @@ export function clearFilters() {
 }
 
 /** For unit tests / dev console */
-export function _peekVisible(): VisibleGroup[] {
-  return get(visibleSections);
+export function _peekRootCards(): Card[] {
+  return get(rootCards);
 }

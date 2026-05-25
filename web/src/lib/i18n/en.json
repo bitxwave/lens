@@ -21,7 +21,6 @@
   "auth.login.error.bad_password": "Wrong password",
   "auth.login.error.rate_limited": "Too many attempts, try again later",
 
-  "nav.favorites.title": "Favorites",
   "nav.empty.search": "No nav items match",
   "nav.empty.search.hint": "Try clearing filters or different keywords",
   "nav.empty.data": "No nav data yet",
@@ -29,6 +28,11 @@
 
   "editor.item.deleteConfirm": "Delete \"{{name}}\"?",
   "editor.item.new": "New nav item",
+  "common.deleteConfirmGeneric": "Delete \"{{name}}\"?",
+
+  "home.editMode.signInRequired": "Sign in to enter edit mode",
+  "home.folder.untitled": "Untitled",
+  "home.folder.deleteConfirm": "Delete folder \"{{name}}\" and release its {{count}} item(s) to the home grid?",
 
   "error.network.offline": "Cannot reach server",
   "error.network.retry": "Retry",

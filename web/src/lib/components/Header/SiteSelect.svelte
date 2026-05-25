@@ -3,15 +3,14 @@
   import { navDataStore } from '$lib/stores/navData';
   import { uiPrefs } from '$lib/stores/uiPrefs';
   import { currentSite } from '$lib/stores/visible';
-  import { localeStore } from '$lib/i18n/store';
 
   let open = $state(false);
   let triggerEl: HTMLButtonElement | undefined = $state();
   let menuX = $state(0);
   let menuY = $state(0);
 
-  function nameFor(site: { name: string; nameI18n?: Record<string, string> | null }) {
-    return site.nameI18n?.[$localeStore] ?? site.name;
+  function nameFor(site: { name: string }) {
+    return site.name;
   }
 
   function openMenu() {
