@@ -61,19 +61,19 @@
     if (!$dragSource) onClose();
   }}
 ></div>
-<section class="expand" aria-label={folder.name}>
-  <header>
-    <h3>{folder.name}</h3>
+<div class="wrap">
+  <h3 class="title">{folder.name}</h3>
+  <section class="expand" aria-label={folder.name}>
     <button type="button" class="close" aria-label={$t('common.close')} onclick={onClose}>
       ×
     </button>
-  </header>
-  <div class="grid" data-zone={zoneId}>
-    {#each childCards as c (c.id)}
-      <CardComp card={c} {onEdit} />
-    {/each}
-  </div>
-</section>
+    <div class="grid" data-zone={zoneId}>
+      {#each childCards as c (c.id)}
+        <CardComp card={c} {onEdit} />
+      {/each}
+    </div>
+  </section>
+</div>
 
 <style lang="scss">
   .backdrop {
@@ -85,13 +85,36 @@
     z-index: 80;
     animation: backdrop-in 0.18s ease-out;
   }
-  .expand {
+  /* The wrapper is the fixed-position container so the entry animation
+   * lives on it; .expand inside is the actual card. .title sits above
+   * .expand as a floating label, matching macOS Launchpad. */
+  .wrap {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: min(90vw, 720px);
+    z-index: 81;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
     max-height: calc(100vh - 96px);
+    width: min(90vw, 720px);
+    animation: wrap-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .title {
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    color: var(--c-card-label);
+    text-shadow: var(--sh-card-label);
+    letter-spacing: 0.04em;
+  }
+  .expand {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
     padding: var(--sp-5);
     background: rgba(255, 255, 255, 0.62);
@@ -102,8 +125,6 @@
       0 6px 22px rgba(0, 0, 0, 0.14);
     backdrop-filter: blur(30px) saturate(180%);
     -webkit-backdrop-filter: blur(30px) saturate(180%);
-    z-index: 81;
-    animation: panel-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   :global([data-theme='dark']) .backdrop {
     background: rgba(8, 6, 14, 0.45);
@@ -120,7 +141,7 @@
       opacity: 1;
     }
   }
-  @keyframes panel-in {
+  @keyframes wrap-in {
     from {
       opacity: 0;
       transform: translate(-50%, calc(-50% + 8px)) scale(0.96);
@@ -130,22 +151,17 @@
       transform: translate(-50%, -50%) scale(1);
     }
   }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--sp-4);
-  }
-  h3 {
-    margin: 0;
-    font-size: var(--fs-md);
-  }
   .close {
+    position: absolute;
+    top: var(--sp-3);
+    right: var(--sp-3);
     background: transparent;
     border: 0;
     font-size: 24px;
+    line-height: 1;
     cursor: pointer;
     color: var(--c-text);
+    z-index: 1;
   }
   .grid {
     display: grid;
