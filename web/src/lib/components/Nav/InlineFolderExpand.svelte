@@ -3,7 +3,6 @@
   import { onMount } from 'svelte';
   import { navDataStore } from '$lib/stores/navData';
   import { currentSite } from '$lib/stores/visible';
-  import { t } from '$lib/i18n/store';
   import { dragSource } from '$lib/stores/dragMerge';
   import CardComp from './Card.svelte';
 
@@ -64,9 +63,6 @@
 <div class="wrap">
   <h3 class="title">{folder.name}</h3>
   <section class="expand" aria-label={folder.name}>
-    <button type="button" class="close" aria-label={$t('common.close')} onclick={onClose}>
-      ×
-    </button>
     <div class="grid" data-zone={zoneId}>
       {#each childCards as c (c.id)}
         <CardComp card={c} {onEdit} />
@@ -150,18 +146,6 @@
       opacity: 1;
       transform: translate(-50%, -50%) scale(1);
     }
-  }
-  .close {
-    position: absolute;
-    top: var(--sp-3);
-    right: var(--sp-3);
-    background: transparent;
-    border: 0;
-    font-size: 24px;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--c-text);
-    z-index: 1;
   }
   .grid {
     display: grid;
