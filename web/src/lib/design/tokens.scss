@@ -56,9 +56,12 @@
   --sh-md: 0 4px 12px rgba(0, 0, 0, 0.06);
   --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
 
-  /* Card — bigger, more dimensional than --sh-* primitives. Used by NavItem. */
-  --sh-card: 0 0 22px rgba(35, 25, 60, 0.35);
-  --sh-card-hover: 0 0 28px rgba(35, 25, 60, 0.45);
+  /* Card — soft directional drop shadow (sits below the card so the
+   * gradient backdrop doesn't read as a dark halo around it). Light
+   * theme: low opacity violet tint kept consistent with the brand
+   * palette. */
+  --sh-card: 0 4px 16px rgba(35, 25, 60, 0.18);
+  --sh-card-hover: 0 8px 22px rgba(35, 25, 60, 0.26);
 
   /* Card label color — sits over the vibrant gradient, so white + shadow. */
   --c-card-label: #ffffff;
