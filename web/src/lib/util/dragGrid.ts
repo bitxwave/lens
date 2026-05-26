@@ -204,6 +204,78 @@ export function cellAdvance(bucket: SlotRect[]): { dx: number; dy: number } | nu
   return { dx: b.left - a.left, dy: b.top - a.top };
 }
 
+export interface CardIdEntry {
+  zone: string;
+  logicalIdx: number;
+  rect: DOMRect;
+}
+
+export interface LayoutCache {
+  byZone: Map<string, SlotRect[]>; // sorted by logicalIdx
+  byCardId: Map<number, CardIdEntry>;
+  cellAdvanceByZone: Map<string, { dx: number; dy: number }>;
+}
+
+/**
+ * Snapshot all [data-card-id] cells inside `node`, grouped by their
+ * nearest [data-zone] ancestor. Source's own cell is included so its
+ * logical position is recoverable, but the consumer treats source as
+ * "the gap" and skips shifting it.
+ */
+export function buildLayoutCache(node: HTMLElement): LayoutCache {
+  const byZone = new Map<string, SlotRect[]>();
+  const byCardId = new Map<number, CardIdEntry>();
+  const cells = node.querySelectorAll<HTMLElement>('[data-card-id]');
+  // First pass: collect all cells with rects, grouped by zone.
+  const collected: Array<{ cell: HTMLElement; meta: CardMeta; rect: DOMRect }> = [];
+  cells.forEach((cell) => {
+    const meta = readMetaFromCell(cell);
+    if (!meta) return; // skip add-tile sentinel and malformed
+    collected.push({ cell, meta, rect: cell.getBoundingClientRect() });
+  });
+  // Group by zone, sort by document order (which mirrors logicalIdx
+  // because the grid renders in sortOrder).
+  const byZoneRaw = new Map<string, Array<{ meta: CardMeta; rect: DOMRect }>>();
+  for (const { meta, rect } of collected) {
+    const list = byZoneRaw.get(meta.zone) ?? [];
+    list.push({ meta, rect });
+    byZoneRaw.set(meta.zone, list);
+  }
+  // Second pass: assign logicalIdx in DOM order, build SlotRect arrays.
+  for (const [zone, items] of byZoneRaw) {
+    const slots: SlotRect[] = items.map((item, idx) => ({
+      zone,
+      logicalIdx: idx,
+      cardId: item.meta.id,
+      rect: item.rect
+    }));
+    byZone.set(zone, slots);
+    for (const slot of slots) {
+      byCardId.set(slot.cardId, {
+        zone,
+        logicalIdx: slot.logicalIdx,
+        rect: slot.rect
+      });
+    }
+  }
+  // Per-zone cellAdvance for extrapolation.
+  const cellAdvanceByZone = new Map<string, { dx: number; dy: number }>();
+  for (const [zone, slots] of byZone) {
+    const adv = cellAdvance(slots);
+    if (adv) cellAdvanceByZone.set(zone, adv);
+  }
+  return { byZone, byCardId, cellAdvanceByZone };
+}
+
+/**
+ * Pure: is cursorX on the left half of a slot's rect?
+ * Center exactly is treated as right-half (so before/after split has a
+ * deterministic tie-break).
+ */
+export function cursorOnLeftHalfOf(rect: DOMRect, cursorX: number): boolean {
+  return cursorX < rect.left + rect.width / 2;
+}
+
 interface DragSession {
   sourceCell: HTMLElement;
   source: CardMeta;

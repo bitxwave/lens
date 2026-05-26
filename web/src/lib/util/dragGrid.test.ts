@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeShifts, type SlotRect } from './dragGrid';
+import { computeShifts, cursorOnLeftHalfOf, type SlotRect } from './dragGrid';
 
 // vitest runs in node env (no jsdom/happy-dom installed); the action's
 // type signatures use DOMRect, but computeShifts only reads .left/.top.
@@ -200,5 +200,22 @@ describe('computeShifts — cross zone', () => {
     expect(out.get(2001)).toEqual({ dx: 100, dy: 0 }); // direct lookup (idx 1 → 2 exists)
     expect(out.get(2002)).toEqual({ dx: 100, dy: 0 }); // extrapolated (idx 2 → 3 doesn't exist)
     expect(out.get(2000)).toBeUndefined();
+  });
+});
+
+describe('cursorOnLeftHalfOf', () => {
+  it('returns true when cursor is left of slot center', () => {
+    const rect = new DOMRect(100, 0, 80, 80); // [100, 180]
+    expect(cursorOnLeftHalfOf(rect, 120)).toBe(true); // 120 < 140 (center)
+  });
+
+  it('returns false when cursor is right of slot center', () => {
+    const rect = new DOMRect(100, 0, 80, 80);
+    expect(cursorOnLeftHalfOf(rect, 160)).toBe(false); // 160 > 140
+  });
+
+  it('returns false when cursor is exactly at center (right-half tie-break)', () => {
+    const rect = new DOMRect(100, 0, 80, 80);
+    expect(cursorOnLeftHalfOf(rect, 140)).toBe(false); // exactly at center
   });
 });
