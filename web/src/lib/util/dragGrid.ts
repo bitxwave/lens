@@ -30,7 +30,7 @@
 // the cursor. This is what keeps hit-tests reliable.
 
 import { browser } from '$app/environment';
-import { mergeCandidate, dragSource } from '$lib/stores/dragMerge';
+import { mergeCandidate, dragSource, cellShifts } from '$lib/stores/dragMerge';
 
 export type CardKind = 'folder' | 'item';
 export type DropIntent = 'merge' | 'before' | 'after';
@@ -291,12 +291,25 @@ interface DragSession {
   cloneOffsetX: number;
   cloneOffsetY: number;
   rafToken: number | null;
+  // Existing spring-load timer (folder panel auto-open).
   dwellTimer: ReturnType<typeof setTimeout> | null;
   dwellTargetId: number | null;
   edgePanTimer: ReturnType<typeof setTimeout> | null;
   edgePanDirection: EdgePanDirection | null;
   hover: DragHoverInfo;
   pointerId: number;
+  // New (Task 4): layout snapshot, populated at lift.
+  layoutCache: LayoutCache | null;
+  sourceLogicalIdx: number;
+  // New (Task 4): merge dwell state machine.
+  mergeArmTimer: ReturnType<typeof setTimeout> | null;
+  mergeReadyTimer: ReturnType<typeof setTimeout> | null;
+  mergeArmTargetId: number | null;
+  mergeArmStartX: number;
+  mergeArmStartY: number;
+  /** True once arm timer fires; persists through ready. The drop semantics
+   *  flip from reorder→merge based on this flag. */
+  mergeArmFired: boolean;
 }
 
 function readMetaFromCell(cell: HTMLElement): CardMeta | null {
@@ -377,7 +390,15 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       edgePanTimer: null,
       edgePanDirection: null,
       hover: { target: null, intent: null, hoverZone: meta.zone, outOfZone: false },
-      pointerId: e.pointerId
+      pointerId: e.pointerId,
+      layoutCache: null,
+      sourceLogicalIdx: -1,
+      mergeArmTimer: null,
+      mergeReadyTimer: null,
+      mergeArmTargetId: null,
+      mergeArmStartX: 0,
+      mergeArmStartY: 0,
+      mergeArmFired: false
     };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
@@ -575,6 +596,59 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     session.dwellTargetId = null;
   }
 
+  function cancelMergeArm() {
+    if (!session) return;
+    if (session.mergeArmTimer) {
+      clearTimeout(session.mergeArmTimer);
+      session.mergeArmTimer = null;
+    }
+    if (session.mergeReadyTimer) {
+      clearTimeout(session.mergeReadyTimer);
+      session.mergeReadyTimer = null;
+    }
+    session.mergeArmTargetId = null;
+    session.mergeArmFired = false;
+    mergeCandidate.set(null);
+  }
+
+  function startMergeArmForItem(targetId: number, kind: CardKind) {
+    if (!session) return;
+    cancelMergeArm();
+    session.mergeArmTargetId = targetId;
+    session.mergeArmFired = false;
+    session.mergeArmStartX = session.cursorX;
+    session.mergeArmStartY = session.cursorY;
+
+    session.mergeArmTimer = setTimeout(() => {
+      if (!session) return;
+      if (session.mergeArmTargetId !== targetId) return;
+      // Defensive: if the cursor wandered past tolerance, do not arm.
+      const dx = session.cursorX - session.mergeArmStartX;
+      const dy = session.cursorY - session.mergeArmStartY;
+      if (Math.hypot(dx, dy) > MERGE_CANCEL_MOVE_PX) {
+        cancelMergeArm();
+        return;
+      }
+      session.mergeArmFired = true;
+      mergeCandidate.set({ id: targetId, kind, phase: 'armed' });
+    }, MERGE_ARM_MS);
+
+    session.mergeReadyTimer = setTimeout(() => {
+      if (!session) return;
+      if (session.mergeArmTargetId !== targetId) return;
+      if (!session.mergeArmFired) return; // arm cancelled before ready
+      mergeCandidate.set({ id: targetId, kind, phase: 'ready' });
+    }, MERGE_READY_MS);
+  }
+
+  function setMergeImmediateForFolder(targetId: number) {
+    if (!session) return;
+    cancelMergeArm();
+    session.mergeArmTargetId = targetId;
+    session.mergeArmFired = true;
+    mergeCandidate.set({ id: targetId, kind: 'folder', phase: 'ready' });
+  }
+
   function onPointerUp(e: PointerEvent) {
     if (!session) return;
     if (e.pointerId !== session.pointerId) return;
@@ -599,6 +673,8 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     if (s.rafToken != null) cancelAnimationFrame(s.rafToken);
     if (s.dwellTimer) clearTimeout(s.dwellTimer);
     if (s.edgePanTimer) clearTimeout(s.edgePanTimer);
+    if (s.mergeArmTimer) clearTimeout(s.mergeArmTimer);
+    if (s.mergeReadyTimer) clearTimeout(s.mergeReadyTimer);
 
     if (s.clone) {
       s.clone.remove();
@@ -614,6 +690,7 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
 
     mergeCandidate.set(null);
     dragSource.set(null);
+    cellShifts.set(new Map());
 
     if (s.lifted && !canceled) {
       options.onDrop?.({
