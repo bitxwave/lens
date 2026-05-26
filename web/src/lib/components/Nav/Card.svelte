@@ -23,9 +23,7 @@
   const isFolder = $derived(card.kind === 'folder');
 
   const shift = $derived($cellShifts.get(card.id) ?? { dx: 0, dy: 0 });
-  const mergePhase = $derived(
-    $mergeCandidate?.id === card.id ? $mergeCandidate.phase : null
-  );
+  const mergePhase = $derived($mergeCandidate?.id === card.id ? $mergeCandidate.phase : null);
 
   const url = $derived(
     isItem && $currentSite.site && card.links ? (card.links[$currentSite.site.value] ?? null) : null
@@ -180,8 +178,13 @@
   /* While this cell is the active drag source, hide it so the empty
    * slot is visible at the source's logical position. The clone follows
    * the cursor (managed by dragGrid). pointer-events:none keeps the
-   * hidden cell from intercepting elementsFromPoint hits. */
-  .cell[data-dragging='true'] {
+   * hidden cell from intercepting elementsFromPoint hits.
+   * `data-dragging` is set imperatively in dragGrid.ts (not in this
+   * template), so we mark the attribute selector :global so Svelte's
+   * static analyzer doesn't flag it as unused. The `.cell` class stays
+   * scoped, so this rule still only matches elements rendered by this
+   * component. */
+  .cell:global([data-dragging='true']) {
     opacity: 0;
     pointer-events: none;
   }
@@ -222,7 +225,16 @@
    * - merge-ready: promotes at MERGE_READY_MS (600 ms). Stronger halo,
    *   larger scale. Functionally identical to armed for drop, but a
    *   clearer "release now = build folder" signal.
-   * Folder targets are always set to ready immediately. */
+   * Folder targets are always set to ready immediately.
+   * Note: jiggle keyframes own `transform: rotate(...)` on the same
+   * inner element; pausing the animation lets our static scale apply
+   * so the user actually sees the size cue while merging. */
+  .cell.merge-armed .card,
+  .cell.merge-armed .folder,
+  .cell.merge-ready .card,
+  .cell.merge-ready .folder {
+    animation-play-state: paused;
+  }
   .cell.merge-armed .card,
   .cell.merge-armed .folder {
     box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.5);

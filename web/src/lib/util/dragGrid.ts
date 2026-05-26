@@ -89,7 +89,11 @@ const MERGE_INNER_FRACTION = 0.5; // tighter (was 0.6) — dwell-gated, can be s
 const MERGE_ARM_MS = 200; // arm fires (release ≥ here = merge)
 const MERGE_READY_MS = 600; // ready halo strengthens
 const MERGE_CANCEL_MOVE_PX = 8; // jitter tolerance during pre-arm
-const SHIFT_DURATION_MS = 220;
+/** Reorder shift transition duration. Exported so callers (e.g. the
+ *  page using dragGrid) can set `--shift-duration` on the canvas to
+ *  keep CSS in sync. Card.svelte falls back to this value if the var
+ *  is unset. */
+export const SHIFT_DURATION_MS = 220;
 // SHIFT_EASE is exposed via CSS variable on Card.svelte; not needed here
 const HOVER_DWELL_MS = 500; // existing spring-load (unchanged)
 const EDGE_PAN_THRESHOLD_PX = 80;
