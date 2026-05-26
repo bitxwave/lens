@@ -27,10 +27,12 @@
   import type { Card as CardType } from '$lib/types/card';
   import {
     dragGrid,
+    ADD_CELL_CARD_ID,
     type DragDropInfo,
     type DropIntent,
     type EdgePanDirection
   } from '$lib/util/dragGrid';
+  import { cellShifts } from '$lib/stores/dragMerge';
   import { chunk } from '$lib/util/paginate';
 
   function describeError(e: unknown): string {
@@ -478,7 +480,14 @@
                   />
                 {/each}
                 {#if pageIdx === pages.length - 1 && $sessionStore.authed && ($jiggleMode || $rootCards.length === 0)}
-                  <div class="add-cell">
+                  {@const addShift = $cellShifts.get(ADD_CELL_CARD_ID) ?? { dx: 0, dy: 0 }}
+                  <div
+                    class="add-cell"
+                    data-add-cell
+                    style:transform={addShift.dx === 0 && addShift.dy === 0
+                      ? null
+                      : `translate(${addShift.dx}px, ${addShift.dy}px)`}
+                  >
                     <NewItemAffordance onClick={() => openCreate(null)} />
                   </div>
                   {#if $rootCards.length === 0}
@@ -570,6 +579,9 @@
     display: flex;
     justify-content: center;
     align-items: flex-start;
+    /* Match Card.svelte's reorder shift transition so the affordance
+     * animates in lockstep when a displaced card pushes it. */
+    transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   /* Hint shown only when the grid is empty; spans the whole grid row so
    * the placeholder card sits centered above its caption. */
