@@ -85,7 +85,12 @@ export interface DragGridOptions {
 }
 
 const LIFT_THRESHOLD_PX = 5;
-const MERGE_INNER_FRACTION = 0.5; // tighter (was 0.6) — dwell-gated, can be smaller
+/** Fraction of the target cell area that the dragged card must overlap
+ *  for a merge intent to register. Replaces the old cursor-inside-inner-N
+ *  rule (which triggered too easily when the cursor merely brushed a
+ *  card's center). With 0.85 the dragged card has to sit almost fully
+ *  on top of the target before halo or folder-arming begins. */
+const MERGE_OVERLAP_FRACTION = 0.85;
 const MERGE_ARM_MS = 200; // arm fires (release ≥ here = merge)
 const MERGE_READY_MS = 600; // ready halo strengthens
 const MERGE_CANCEL_MOVE_PX = 8; // jitter tolerance during pre-arm
@@ -338,14 +343,30 @@ function readMetaFromCell(cell: HTMLElement): CardMeta | null {
   return { id, kind: kindAttr, zone };
 }
 
-function classifyIntent(r: DOMRect, x: number, y: number): DropIntent {
-  const cx = (x - r.left) / r.width;
-  const cy = (y - r.top) / r.height;
-  const inner = (1 - MERGE_INNER_FRACTION) / 2; // 0.2 if fraction=0.6
-  if (cx >= inner && cx <= 1 - inner && cy >= inner && cy <= 1 - inner) {
+/**
+ * Classify the cursor's intent relative to a target slot.
+ *
+ * Merge requires the dragged card itself to overlap the target by
+ * `MERGE_OVERLAP_FRACTION` of the smaller card's area — i.e. the user
+ * has visually placed the cards mostly on top of each other. This is
+ * stricter than "cursor in inner N% of target" (which fires whenever
+ * the cursor brushes the middle, even with the dragged card barely
+ * touching).
+ *
+ * Falls back to before/after by cursor side when overlap is below the
+ * threshold.
+ */
+function classifyIntent(target: DOMRect, dragged: DOMRect, cursorX: number): DropIntent {
+  const overlapW = Math.max(0, Math.min(target.right, dragged.right) - Math.max(target.left, dragged.left));
+  const overlapH = Math.max(0, Math.min(target.bottom, dragged.bottom) - Math.max(target.top, dragged.top));
+  const overlapArea = overlapW * overlapH;
+  const targetArea = target.width * target.height;
+  const draggedArea = dragged.width * dragged.height;
+  const minArea = Math.min(targetArea, draggedArea);
+  if (minArea > 0 && overlapArea / minArea >= MERGE_OVERLAP_FRACTION) {
     return 'merge';
   }
-  return cx < 0.5 ? 'before' : 'after';
+  return cursorX < target.left + target.width / 2 ? 'before' : 'after';
 }
 
 export function dragGrid(
@@ -554,6 +575,18 @@ export function dragGrid(
 
   function computeHover(s: DragSession): DragHoverInfo {
     const { cursorX, cursorY, source } = s;
+    // The dragged card's current screen rect — needed for overlap-based
+    // merge classification. Falls back to the source cell's lifted rect
+    // when the layoutCache snapshot is missing.
+    const sourceRect = s.layoutCache?.byCardId.get(source.id)?.rect;
+    const draggedW = sourceRect?.width ?? 0;
+    const draggedH = sourceRect?.height ?? 0;
+    const draggedRect = new DOMRect(
+      cursorX - s.cloneOffsetX,
+      cursorY - s.cloneOffsetY,
+      draggedW,
+      draggedH
+    );
     const stack = document.elementsFromPoint(cursorX, cursorY);
     let hoverZone: string | null = null;
     for (const el of stack) {
@@ -573,7 +606,7 @@ export function dragGrid(
       if (!meta) continue;
       if (meta.id === source.id) continue;
       const r = cell.getBoundingClientRect();
-      const intent = classifyIntent(r, cursorX, cursorY);
+      const intent = classifyIntent(r, draggedRect, cursorX);
       return { target: meta, intent, hoverZone: meta.zone, outOfZone: false };
     }
     return {
@@ -595,11 +628,20 @@ export function dragGrid(
 
     // --- Merge dwell state machine ---
     // Item targets need a 200ms arm gate. Folder targets are immediate.
-    // Non-merge intent or different target → cancel arming.
+    // Folders can't be nested inside other cards (folder source can
+    // only ever be reordered), so we only arm merge candidates when
+    // the source is an item.
+    const sourceIsItem = session.source.kind === 'item';
     const isMergeItem =
-      next.intent === 'merge' && next.target?.kind === 'item' && next.target.id != null;
+      sourceIsItem &&
+      next.intent === 'merge' &&
+      next.target?.kind === 'item' &&
+      next.target.id != null;
     const isMergeFolder =
-      next.intent === 'merge' && next.target?.kind === 'folder' && next.target.id != null;
+      sourceIsItem &&
+      next.intent === 'merge' &&
+      next.target?.kind === 'folder' &&
+      next.target.id != null;
 
     if (!isMergeItem && !isMergeFolder) {
       if (session.mergeArmTargetId != null) cancelMergeArm();
@@ -898,6 +940,19 @@ export function dragGrid(
       /* ignore */
     }
 
+    // Suppress the cell transform transition while we clear the
+    // shifts. Otherwise the snap-back from "shifted" to "0" animates
+    // for 220ms while handleDrop's reorder API + refetch land in
+    // parallel, producing a visible flicker as cells transition while
+    // their DOM positions also change. After two frames (data has
+    // settled) we restore the inline style so future drags animate
+    // again.
+    const cells =
+      s.lifted && !canceled
+        ? Array.from(node.querySelectorAll<HTMLElement>('[data-card-id]'))
+        : [];
+    for (const cell of cells) cell.style.transition = 'none';
+
     mergeCandidate.set(null);
     dragSource.set(null);
     // Reset both store and dedup tracker so the next drag session
@@ -909,6 +964,16 @@ export function dragGrid(
       options.onDrop?.({
         source: s.source,
         ...resolveFinalIntent(s)
+      });
+    }
+
+    if (cells.length) {
+      // Two rAF frames is empirically enough for refetch + reactive
+      // re-render to land before transitions resume.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          for (const cell of cells) cell.style.transition = '';
+        });
       });
     }
   }
