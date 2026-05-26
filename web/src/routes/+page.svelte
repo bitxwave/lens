@@ -311,7 +311,15 @@
       const targetBucket = bucketFor(targetZone);
       const targetIdx = targetBucket.findIndex((c) => c.id === info.target!.id);
       if (targetIdx < 0) return;
-      const insertAt = effectiveIntent === 'before' ? targetIdx : targetIdx + 1;
+      // reorderEntries works in the post-source-removal coordinate
+      // system. When source sits before target in the same zone,
+      // target shifts up by 1 once source is removed; account for that
+      // so "before target" actually lands the source just before it
+      // (instead of one slot too far right).
+      const sourceIdxInTarget = targetBucket.findIndex((c) => c.id === info.source.id);
+      const adjustedTargetIdx =
+        sourceIdxInTarget >= 0 && sourceIdxInTarget < targetIdx ? targetIdx - 1 : targetIdx;
+      const insertAt = effectiveIntent === 'before' ? adjustedTargetIdx : adjustedTargetIdx + 1;
       const parentId = parentIdFor(targetZone);
 
       // If source moves between zones, the source's previous bucket also

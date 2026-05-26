@@ -55,6 +55,7 @@ function row(n: number, zone = 'root', idBase = 1000): SlotRect[] {
       zone,
       logicalIdx: i,
       cardId: idBase + i,
+      kind: 'item',
       rect: new DOMRect(left, 0, 80, 80)
     });
   }

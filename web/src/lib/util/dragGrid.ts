@@ -107,6 +107,7 @@ export interface SlotRect {
   zone: string; // 'root' | `folder:${number}`
   logicalIdx: number;
   cardId: number;
+  kind: CardKind;
   rect: DOMRect;
 }
 
@@ -258,6 +259,7 @@ export function buildLayoutCache(node: HTMLElement): LayoutCache {
       zone,
       logicalIdx: idx,
       cardId: item.meta.id,
+      kind: item.meta.kind,
       rect: item.rect
     }));
     byZone.set(zone, slots);
@@ -648,6 +650,12 @@ export function dragGrid(
   // Hot path: runs every rAF tick during a drag. Recomputes per-card
   // shifts; setShifts skips redundant store writes when the result is
   // value-equal to the previous tick.
+  //
+  // Anchor selection: instead of relying on elementsFromPoint to hit a
+  // specific cell, we always pick the slot closest to the cursor (in
+  // the current hover zone). This keeps the gap responsive even when
+  // the cursor sits in the empty space between cards — where the DOM
+  // hit-test would return null and shifts would otherwise stop.
   function publishShifts(next: DragHoverInfo) {
     if (!session || !session.layoutCache) {
       setShifts(new Map());
@@ -660,43 +668,78 @@ export function dragGrid(
       target != null &&
       next.intent === 'merge' &&
       (target.kind === 'folder' || session.mergeArmFired);
+    if (mergeCollapse) {
+      setShifts(new Map());
+      return;
+    }
 
-    // Determine target zone + dropIdx.
+    // Resolve which zone we're computing shifts in.
     let targetZone: string | null = null;
-    let dropIdx = 0;
     if (target) {
       targetZone = target.zone;
-      const tEntry = lc.byCardId.get(target.id);
-      if (!tEntry) {
-        setShifts(new Map());
-        return;
-      }
-      // For pre-arm item merge, fall through to side-based.
-      let effIntent: DropIntent = next.intent ?? 'after';
-      if (effIntent === 'merge' && target.kind === 'item' && !session.mergeArmFired) {
-        effIntent = cursorOnLeftHalfOf(tEntry.rect, session.cursorX) ? 'before' : 'after';
-      }
-      dropIdx = effIntent === 'before' ? tEntry.logicalIdx : tEntry.logicalIdx + 1;
     } else if (next.hoverZone) {
-      // No target but inside a zone → append at end.
       targetZone = next.hoverZone;
-      const bucket = lc.byZone.get(targetZone) ?? [];
-      dropIdx = bucket.length;
     } else {
       setShifts(new Map());
       return;
     }
 
-    const shifts = computeShifts({
-      sourceZone: session.source.zone,
-      sourceCardId: session.source.id,
-      sourceLogicalIdx: session.sourceLogicalIdx,
-      targetZone,
-      dropIdx,
-      buckets: lc.bucketsRecord,
-      mergeCollapse
-    });
-    setShifts(shifts);
+    const dropIdx = resolveDropIdx(targetZone, session.cursorX, session.cursorY);
+    if (dropIdx == null) {
+      setShifts(new Map());
+      return;
+    }
+
+    setShifts(
+      computeShifts({
+        sourceZone: session.source.zone,
+        sourceCardId: session.source.id,
+        sourceLogicalIdx: session.sourceLogicalIdx,
+        targetZone,
+        dropIdx,
+        buckets: lc.bucketsRecord,
+        mergeCollapse: false
+      })
+    );
+  }
+
+  // Returns the post-removal drop idx in `zone` for a cursor at
+  // (cursorX, cursorY), or null when the zone is empty / has only the
+  // source itself.
+  //
+  // Algorithm:
+  //   1. Find the non-source slot whose center is nearest the cursor.
+  //   2. Decide before/after by which half of that slot the cursor is on.
+  //   3. Subtract 1 from the anchor's logicalIdx if (sameZone && source
+  //      sits before the anchor), since `dropIdx` is interpreted in the
+  //      post-source-removal coordinate system by computeShifts and the
+  //      `+page.svelte` `handleDrop` reorderEntries math.
+  function resolveDropIdx(zone: string, cursorX: number, cursorY: number): number | null {
+    if (!session || !session.layoutCache) return null;
+    const slots = session.layoutCache.byZone.get(zone) ?? [];
+    let nearest: SlotRect | null = null;
+    let nearestDist = Infinity;
+    for (const slot of slots) {
+      if (slot.cardId === session.source.id) continue;
+      const cx = slot.rect.left + slot.rect.width / 2;
+      const cy = slot.rect.top + slot.rect.height / 2;
+      const d = Math.hypot(cursorX - cx, cursorY - cy);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = slot;
+      }
+    }
+    if (!nearest) {
+      // Empty zone (or only source in it) → drop at index 0.
+      return 0;
+    }
+    const isLeft = cursorOnLeftHalfOf(nearest.rect, cursorX);
+    const sameZone = session.source.zone === zone;
+    const baseIdx =
+      sameZone && session.sourceLogicalIdx >= 0 && session.sourceLogicalIdx < nearest.logicalIdx
+        ? nearest.logicalIdx - 1
+        : nearest.logicalIdx;
+    return isLeft ? baseIdx : baseIdx + 1;
   }
 
   function cancelDwell() {
@@ -795,6 +838,35 @@ export function dragGrid(
       if (!entry) return { ...s.hover, intent: 'after' };
       const intent: DropIntent = cursorOnLeftHalfOf(entry.rect, s.cursorX) ? 'before' : 'after';
       return { ...s.hover, intent };
+    }
+    // No target was hit by elementsFromPoint, but the cursor is still
+    // inside a known zone (e.g. between two cards). Synthesize the
+    // closest non-source slot so handleDrop has something to anchor on.
+    // Without this, drops in the gaps between cards silently no-op.
+    if (!t && s.hover.hoverZone && s.layoutCache) {
+      const slots = s.layoutCache.byZone.get(s.hover.hoverZone) ?? [];
+      let nearest: SlotRect | null = null;
+      let nearestDist = Infinity;
+      for (const slot of slots) {
+        if (slot.cardId === s.source.id) continue;
+        const cx = slot.rect.left + slot.rect.width / 2;
+        const cy = slot.rect.top + slot.rect.height / 2;
+        const d = Math.hypot(s.cursorX - cx, s.cursorY - cy);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = slot;
+        }
+      }
+      if (nearest) {
+        const intent: DropIntent = cursorOnLeftHalfOf(nearest.rect, s.cursorX)
+          ? 'before'
+          : 'after';
+        return {
+          ...s.hover,
+          target: { id: nearest.cardId, kind: nearest.kind, zone: nearest.zone },
+          intent
+        };
+      }
     }
     return s.hover;
   }
