@@ -126,6 +126,23 @@ describe('computeShifts — same zone', () => {
     });
     expect(out.size).toBe(0);
   });
+
+  it('returns empty when sourceLogicalIdx is negative (defensive)', () => {
+    // -1 sentinel means the source isn't in any bucket cache yet (e.g.
+    // pointerdown registered before the layout snapshot caught up).
+    // computeShifts must not produce nonsensical shifts in that state.
+    const bucket = row(5);
+    const out = computeShifts({
+      sourceZone: 'root',
+      sourceCardId: 9999,
+      sourceLogicalIdx: -1,
+      targetZone: 'root',
+      dropIdx: 2,
+      buckets: { root: bucket },
+      mergeCollapse: false
+    });
+    expect(out.size).toBe(0);
+  });
 });
 
 describe('computeShifts — cross zone', () => {
@@ -164,5 +181,24 @@ describe('computeShifts — cross zone', () => {
       mergeCollapse: false
     });
     expect(out.size).toBe(0); // nothing after idx 3 in src; target empty
+  });
+
+  it('extrapolates target shift via cellAdvance when last card shifts past end', () => {
+    // target has 3 cards (idx 0, 1, 2); drop at idx 1 → cards at idx 1, 2
+    // shift forward. Card at idx 1 → 2 hits a real slot (direct lookup);
+    // card at idx 2 → 3 has no slot in the bucket → cellAdvance fallback.
+    const folder = row(3, 'folder:5', 2000);
+    const out = computeShifts({
+      sourceZone: 'root',
+      sourceCardId: 9999, // not in any bucket; src zone has no cards
+      sourceLogicalIdx: 0,
+      targetZone: 'folder:5',
+      dropIdx: 1,
+      buckets: { root: [], 'folder:5': folder },
+      mergeCollapse: false
+    });
+    expect(out.get(2001)).toEqual({ dx: 100, dy: 0 }); // direct lookup (idx 1 → 2 exists)
+    expect(out.get(2002)).toEqual({ dx: 100, dy: 0 }); // extrapolated (idx 2 → 3 doesn't exist)
+    expect(out.get(2000)).toBeUndefined();
   });
 });

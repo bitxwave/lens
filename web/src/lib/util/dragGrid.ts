@@ -127,6 +127,9 @@ export interface ComputeShiftsInput {
 export function computeShifts(input: ComputeShiftsInput): Map<number, { dx: number; dy: number }> {
   const result = new Map<number, { dx: number; dy: number }>();
   if (input.mergeCollapse) return result;
+  // Defensive: sourceLogicalIdx -1 means source isn't in the cache yet
+  // (e.g. between pointerdown and lift). Don't compute shifts.
+  if (input.sourceLogicalIdx < 0) return result;
 
   const { sourceZone, sourceCardId, sourceLogicalIdx, targetZone, dropIdx, buckets } = input;
 
