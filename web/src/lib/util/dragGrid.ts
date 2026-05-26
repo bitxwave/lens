@@ -346,7 +346,14 @@ function classifyIntent(r: DOMRect, x: number, y: number): DropIntent {
   return cx < 0.5 ? 'before' : 'after';
 }
 
-export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
+export function dragGrid(
+  node: HTMLElement,
+  opts: DragGridOptions
+): {
+  update(next: DragGridOptions): void;
+  rebuildLayoutCache(): void;
+  destroy(): void;
+} {
   let options = opts;
   let session: DragSession | null = null;
   // Tracks the last cellShifts Map written to the store. publishShifts
@@ -842,6 +849,17 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
   return {
     update(next: DragGridOptions) {
       options = next;
+    },
+    /** Rebuilds the layout cache. Callers (page-level callbacks) invoke
+     *  this after layout-changing events (spring-load, edge-pan) so
+     *  subsequent ticks have correct slot rects. No-op when no drag is
+     *  active. */
+    rebuildLayoutCache() {
+      if (session?.lifted) {
+        session.layoutCache = buildLayoutCache(node);
+        const srcEntry = session.layoutCache.byCardId.get(session.source.id);
+        session.sourceLogicalIdx = srcEntry?.logicalIdx ?? session.sourceLogicalIdx;
+      }
     },
     destroy() {
       if (browser) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { navDataStore } from '$lib/stores/navData';
   import {
     rootCards,
@@ -47,6 +47,24 @@
 
   /** Currently expanded folder. null = none. */
   let openFolderId = $state<number | null>(null);
+
+  /** Handle to the dragGrid action so page-level callbacks can rebuild
+   *  the layout cache after layout-changing events (spring-load, edge-pan). */
+  let dragGridHandle: { rebuildLayoutCache(): void } | null = null;
+
+  function dragGridAction(node: HTMLElement, opts: Parameters<typeof dragGrid>[1]) {
+    const ret = dragGrid(node, opts);
+    dragGridHandle = ret;
+    return {
+      update(next: typeof opts) {
+        ret.update(next);
+      },
+      destroy() {
+        dragGridHandle = null;
+        ret.destroy();
+      }
+    };
+  }
 
   // ──────── Pager (P1: horizontal pages + dot indicator) ────────
 
@@ -162,15 +180,19 @@
     )
   );
 
-  function onSpringLoad(folderId: number) {
+  async function onSpringLoad(folderId: number) {
     if (openFolderId !== folderId) openFolderId = folderId;
+    await tick();
+    dragGridHandle?.rebuildLayoutCache();
   }
 
   /** Drag-to-edge auto pager turn (P2). dragGrid fires this while a card
    *  is held near the viewport edge during an active drag. */
-  function onEdgePan(direction: EdgePanDirection) {
+  async function onEdgePan(direction: EdgePanDirection) {
     if (direction === 'prev') currentPage.prev();
     else currentPage.next(pageCount - 1);
+    await tick();
+    dragGridHandle?.rebuildLayoutCache();
   }
 
   /** Auto-close the open folder panel as soon as the user drags one of
@@ -410,7 +432,7 @@
        are owned by one session and dispatched via one handleDrop. -->
   <div
     class="canvas"
-    use:dragGrid={{
+    use:dragGridAction={{
       enabled: $jiggleMode && $sessionStore.authed,
       onSpringLoad,
       onEdgePan,
