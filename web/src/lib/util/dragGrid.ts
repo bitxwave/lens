@@ -217,6 +217,10 @@ export interface LayoutCache {
    *  zones with <2 cells (single-slot zones can't infer an advance);
    *  callers must handle a missing entry gracefully. */
   cellAdvanceByZone: Map<string, { dx: number; dy: number }>;
+  /** Pre-computed `byZone` as a Record for direct use by computeShifts.
+   *  Built once at lift / cache rebuild so the per-rAF publishShifts
+   *  doesn't reallocate. */
+  bucketsRecord: Record<string, SlotRect[]>;
 }
 
 /**
@@ -267,7 +271,11 @@ export function buildLayoutCache(node: HTMLElement): LayoutCache {
     const adv = cellAdvance(slots);
     if (adv) cellAdvanceByZone.set(zone, adv);
   }
-  return { byZone, byCardId, cellAdvanceByZone };
+  // Pre-build the Record form for computeShifts. Built once here, reused
+  // every rAF tick by publishShifts.
+  const bucketsRecord: Record<string, SlotRect[]> = {};
+  for (const [zone, slots] of byZone) bucketsRecord[zone] = slots;
+  return { byZone, byCardId, cellAdvanceByZone, bucketsRecord };
 }
 
 /**
@@ -337,6 +345,28 @@ function classifyIntent(r: DOMRect, x: number, y: number): DropIntent {
 export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
   let options = opts;
   let session: DragSession | null = null;
+  // Tracks the last cellShifts Map written to the store. publishShifts
+  // skips writes when the new shifts are value-equal, sparing every Card
+  // subscriber a re-render per rAF tick.
+  let lastPublishedShifts: Map<number, { dx: number; dy: number }> = new Map();
+
+  function shiftsEqual(
+    a: Map<number, { dx: number; dy: number }>,
+    b: Map<number, { dx: number; dy: number }>
+  ): boolean {
+    if (a.size !== b.size) return false;
+    for (const [k, v] of a) {
+      const w = b.get(k);
+      if (!w || w.dx !== v.dx || w.dy !== v.dy) return false;
+    }
+    return true;
+  }
+
+  function setShifts(next: Map<number, { dx: number; dy: number }>) {
+    if (shiftsEqual(next, lastPublishedShifts)) return;
+    lastPublishedShifts = next;
+    cellShifts.set(next);
+  }
 
   function cellFromEvent(e: PointerEvent): HTMLElement | null {
     if (!(e.target instanceof Element)) return null;
@@ -604,9 +634,12 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     publishShifts(next);
   }
 
+  // Hot path: runs every rAF tick during a drag. Recomputes per-card
+  // shifts; setShifts skips redundant store writes when the result is
+  // value-equal to the previous tick.
   function publishShifts(next: DragHoverInfo) {
     if (!session || !session.layoutCache) {
-      cellShifts.set(new Map());
+      setShifts(new Map());
       return;
     }
     const lc = session.layoutCache;
@@ -624,7 +657,7 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       targetZone = target.zone;
       const tEntry = lc.byCardId.get(target.id);
       if (!tEntry) {
-        cellShifts.set(new Map());
+        setShifts(new Map());
         return;
       }
       // For pre-arm item merge, fall through to side-based.
@@ -639,12 +672,9 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       const bucket = lc.byZone.get(targetZone) ?? [];
       dropIdx = bucket.length;
     } else {
-      cellShifts.set(new Map());
+      setShifts(new Map());
       return;
     }
-
-    const buckets: Record<string, SlotRect[]> = {};
-    for (const [zone, slots] of lc.byZone) buckets[zone] = slots;
 
     const shifts = computeShifts({
       sourceZone: session.source.zone,
@@ -652,10 +682,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       sourceLogicalIdx: session.sourceLogicalIdx,
       targetZone,
       dropIdx,
-      buckets,
+      buckets: lc.bucketsRecord,
       mergeCollapse
     });
-    cellShifts.set(shifts);
+    setShifts(shifts);
   }
 
   function cancelDwell() {
@@ -772,7 +802,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
 
     mergeCandidate.set(null);
     dragSource.set(null);
+    // Reset both store and dedup tracker so the next drag session
+    // starts from a clean baseline.
     cellShifts.set(new Map());
+    lastPublishedShifts = new Map();
 
     if (s.lifted && !canceled) {
       options.onDrop?.({
