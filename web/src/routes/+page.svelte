@@ -31,6 +31,7 @@
     type DropIntent,
     type EdgePanDirection
   } from '$lib/util/dragGrid';
+  import { dragSource } from '$lib/stores/dragMerge';
   import { chunk } from '$lib/util/paginate';
 
   function describeError(e: unknown): string {
@@ -440,6 +441,7 @@
        are owned by one session and dispatched via one handleDrop. -->
   <div
     class="canvas"
+    class:drag-active={$dragSource !== null}
     use:dragGridAction={{
       enabled: $jiggleMode && $sessionStore.authed,
       onSpringLoad,
@@ -554,8 +556,16 @@
    * overflow-x stays auto so programmatic scrollTo() (driven by the
    * edge-pan dwell in dragGrid) can still turn pages. The pointer
    * itself is captured by dragGrid, so the user can't accidentally
-   * scroll the pager with wheel/touch during the drag. */
-  :global(.canvas:has([data-card-id][data-dragging='true'])) .pager {
+   * scroll the pager with wheel/touch during the drag.
+   *
+   * Driven by the .drag-active class (bound to $dragSource) instead of
+   * a `:has([data-dragging])` descendant test. When a folder card is
+   * dragged out and the cursor leaves the folder zone,
+   * onHoverZoneChange unmounts InlineFolderExpand — which detaches the
+   * source cell carrying [data-dragging] from the DOM. A descendant
+   * `:has()` would lose its match and these rules would silently
+   * disengage mid-drag. The store-backed class outlives the unmount. */
+  .canvas.drag-active .pager {
     scroll-snap-type: none;
   }
   .grid {
@@ -577,8 +587,10 @@
    * the affordance visible would either overlap a shifted card or
    * leave the affordance half-clipped at the row's edge. visibility
    * (not display:none) preserves its CSS-grid slot, so layout cache
-   * rects stay consistent across the lift. */
-  :global(.canvas:has([data-card-id][data-dragging='true'])) .add-cell {
+   * rects stay consistent across the lift. See the .drag-active note
+   * on the .pager rule above for why this is class-driven, not :has()-
+   * driven. */
+  .canvas.drag-active .add-cell {
     visibility: hidden;
   }
   /* Hint shown only when the grid is empty; spans the whole grid row so
@@ -609,7 +621,7 @@
   }
   /* Lock touch scroll on the grid while jiggle mode is active so a
    * drag gesture doesn't double as a page scroll. */
-  :global(.canvas:has([data-card-id][data-dragging='true'])) {
+  .canvas.drag-active {
     touch-action: none;
   }
 </style>
