@@ -1,27 +1,33 @@
-// Visual stores for the LaunchPad drag interaction.
-//
-// The actual hit-testing / dwell / clone-following logic lives in
-// `$lib/util/dragGrid.ts` (a Svelte action attached to the grid
-// container). This file is now just a pair of stores the action writes
-// to and consumers read from for visual feedback.
-//
-//   - dragSource:     set on lift, cleared on drop. Useful for cursor
-//                     theming (`grabbing`) and disabling stray clicks.
-//   - mergeCandidate: set whenever the cursor's drop intent on a target
-//                     is `merge`; cleared otherwise. Used to apply the
-//                     `.merge-target` halo on the target Card cell.
-
 import { writable } from 'svelte/store';
+import type { CardKind } from '$lib/util/dragGrid';
 
-export interface DragSource {
-  id: number;
-  kind: 'folder' | 'item';
-}
+// Visual feedback during a drag session.
+//
+//   - dragSource: { id, kind } of the card currently being dragged. Set
+//                 the moment the drag is "lifted" (cursor moved past
+//                 LIFT_THRESHOLD_PX); cleared when the gesture ends.
+//   - mergeCandidate: set whenever the cursor's drop intent on a target
+//                     would be a merge. Card.svelte uses this to render
+//                     the `.merge-armed` (faint) or `.merge-ready`
+//                     (full) halo on the target Card cell.
+//   - cellShifts: per-card translation in pixels driven by reorder
+//                 preview. Card.svelte applies these as
+//                 `transform: translate(dx px, dy px)` on the cell.
+//                 An entry of {dx:0,dy:0} or no entry means no shift.
+
+export type MergePhase = 'armed' | 'ready';
 
 export interface MergeCandidate {
   id: number;
-  kind: 'folder' | 'item';
+  kind: CardKind;
+  phase: MergePhase;
 }
 
-export const dragSource = writable<DragSource | null>(null);
+export interface DragSourceMeta {
+  id: number;
+  kind: CardKind;
+}
+
+export const dragSource = writable<DragSourceMeta | null>(null);
 export const mergeCandidate = writable<MergeCandidate | null>(null);
+export const cellShifts = writable<Map<number, { dx: number; dy: number }>>(new Map());

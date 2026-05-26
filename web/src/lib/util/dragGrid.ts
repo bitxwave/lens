@@ -85,8 +85,13 @@ export interface DragGridOptions {
 }
 
 const LIFT_THRESHOLD_PX = 5;
-const MERGE_INNER_FRACTION = 0.6; // inner 60% of card → merge
-const HOVER_DWELL_MS = 500;
+const MERGE_INNER_FRACTION = 0.5; // tighter (was 0.6) — dwell-gated, can be smaller
+const MERGE_ARM_MS = 200;          // arm fires (release ≥ here = merge)
+const MERGE_READY_MS = 600;        // ready halo strengthens
+const MERGE_CANCEL_MOVE_PX = 8;    // jitter tolerance during pre-arm
+const SHIFT_DURATION_MS = 220;
+// SHIFT_EASE is exposed via CSS variable on Card.svelte; not needed here
+const HOVER_DWELL_MS = 500;        // existing spring-load (unchanged)
 const EDGE_PAN_THRESHOLD_PX = 80;
 const EDGE_PAN_DWELL_MS = 600;
 const EDGE_PAN_INTERVAL_MS = 800;
@@ -341,7 +346,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     }
 
     if (next.intent === 'merge' && next.target) {
-      mergeCandidate.set({ id: next.target.id, kind: next.target.kind });
+      // Phase is set to 'ready' here to preserve pre-change behavior;
+      // Task 5 (Wire dwell in applyHover) replaces this with the real
+      // armed/ready transition.
+      mergeCandidate.set({ id: next.target.id, kind: next.target.kind, phase: 'ready' });
     } else {
       mergeCandidate.set(null);
     }
