@@ -86,18 +86,120 @@ export interface DragGridOptions {
 
 const LIFT_THRESHOLD_PX = 5;
 const MERGE_INNER_FRACTION = 0.5; // tighter (was 0.6) — dwell-gated, can be smaller
-const MERGE_ARM_MS = 200;          // arm fires (release ≥ here = merge)
-const MERGE_READY_MS = 600;        // ready halo strengthens
-const MERGE_CANCEL_MOVE_PX = 8;    // jitter tolerance during pre-arm
+const MERGE_ARM_MS = 200; // arm fires (release ≥ here = merge)
+const MERGE_READY_MS = 600; // ready halo strengthens
+const MERGE_CANCEL_MOVE_PX = 8; // jitter tolerance during pre-arm
 const SHIFT_DURATION_MS = 220;
 // SHIFT_EASE is exposed via CSS variable on Card.svelte; not needed here
-const HOVER_DWELL_MS = 500;        // existing spring-load (unchanged)
+const HOVER_DWELL_MS = 500; // existing spring-load (unchanged)
 const EDGE_PAN_THRESHOLD_PX = 80;
 const EDGE_PAN_DWELL_MS = 600;
 const EDGE_PAN_INTERVAL_MS = 800;
 const CLONE_OPACITY = 0.88;
 const CLONE_LIFT_SCALE = 1.05;
 const CLONE_ID = '__draggrid_clone__';
+
+export interface SlotRect {
+  zone: string; // 'root' | `folder:${number}`
+  logicalIdx: number;
+  cardId: number;
+  rect: DOMRect;
+}
+
+export interface ComputeShiftsInput {
+  sourceZone: string;
+  sourceCardId: number;
+  sourceLogicalIdx: number;
+  targetZone: string;
+  /** Logical index in targetZone where the source would land. */
+  dropIdx: number;
+  /** Maps zone name to its full snapshot, sorted by logicalIdx. */
+  buckets: Record<string, SlotRect[]>;
+  /** When true (merge armed/ready or folder target), all shifts collapse. */
+  mergeCollapse: boolean;
+}
+
+/**
+ * Per-card translation (dx, dy) needed to render reorder preview.
+ * Pure: returns the same output for the same input. Skips the source
+ * card. Returns an entry only if the card needs a non-zero translation.
+ */
+export function computeShifts(input: ComputeShiftsInput): Map<number, { dx: number; dy: number }> {
+  const result = new Map<number, { dx: number; dy: number }>();
+  if (input.mergeCollapse) return result;
+
+  const { sourceZone, sourceCardId, sourceLogicalIdx, targetZone, dropIdx, buckets } = input;
+
+  if (sourceZone === targetZone) {
+    const bucket = buckets[targetZone] ?? [];
+    if (sourceLogicalIdx === dropIdx) return result;
+    for (const slot of bucket) {
+      if (slot.cardId === sourceCardId) continue;
+      const i = slot.logicalIdx;
+      let newIdx = i;
+      if (sourceLogicalIdx < dropIdx && i > sourceLogicalIdx && i <= dropIdx) {
+        newIdx = i - 1;
+      } else if (sourceLogicalIdx > dropIdx && i >= dropIdx && i < sourceLogicalIdx) {
+        newIdx = i + 1;
+      }
+      if (newIdx === i) continue;
+      const targetSlot = bucket.find((s) => s.logicalIdx === newIdx);
+      if (!targetSlot) continue;
+      result.set(slot.cardId, {
+        dx: targetSlot.rect.left - slot.rect.left,
+        dy: targetSlot.rect.top - slot.rect.top
+      });
+    }
+    return result;
+  }
+
+  // Cross-zone: close source gap; open target slot.
+  const srcBucket = buckets[sourceZone] ?? [];
+  for (const slot of srcBucket) {
+    if (slot.cardId === sourceCardId) continue;
+    const i = slot.logicalIdx;
+    if (i <= sourceLogicalIdx) continue;
+    const newIdx = i - 1;
+    const targetSlot = srcBucket.find((s) => s.logicalIdx === newIdx);
+    if (!targetSlot) continue;
+    result.set(slot.cardId, {
+      dx: targetSlot.rect.left - slot.rect.left,
+      dy: targetSlot.rect.top - slot.rect.top
+    });
+  }
+
+  const tgtBucket = buckets[targetZone] ?? [];
+  for (const slot of tgtBucket) {
+    const i = slot.logicalIdx;
+    if (i < dropIdx) continue;
+    const newIdx = i + 1;
+    // newIdx may be == bucket.length (extrapolated). Use cellAdvance.
+    const targetSlot = tgtBucket.find((s) => s.logicalIdx === newIdx);
+    let dx: number;
+    let dy: number;
+    if (targetSlot) {
+      dx = targetSlot.rect.left - slot.rect.left;
+      dy = targetSlot.rect.top - slot.rect.top;
+    } else {
+      // Extrapolate using the per-step advance from this bucket.
+      const adv = cellAdvance(tgtBucket);
+      if (!adv) continue;
+      dx = adv.dx;
+      dy = adv.dy;
+    }
+    result.set(slot.cardId, { dx, dy });
+  }
+  return result;
+}
+
+/** Per-step displacement vector between consecutive slot rects in a zone. */
+export function cellAdvance(bucket: SlotRect[]): { dx: number; dy: number } | null {
+  if (bucket.length < 2) return null;
+  const a = bucket.find((s) => s.logicalIdx === 0)?.rect;
+  const b = bucket.find((s) => s.logicalIdx === 1)?.rect;
+  if (!a || !b) return null;
+  return { dx: b.left - a.left, dy: b.top - a.top };
+}
 
 interface DragSession {
   sourceCell: HTMLElement;
