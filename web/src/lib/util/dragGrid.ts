@@ -773,6 +773,21 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     finish(true);
   }
 
+  function resolveFinalIntent(s: DragSession): DragHoverInfo {
+    const t = s.hover.target;
+    if (s.mergeArmFired && t) {
+      return { ...s.hover, intent: 'merge' };
+    }
+    if (s.hover.intent === 'merge' && t && t.kind === 'item') {
+      if (!s.layoutCache) return { ...s.hover, intent: 'after' };
+      const entry = s.layoutCache.byCardId.get(t.id);
+      if (!entry) return { ...s.hover, intent: 'after' };
+      const intent: DropIntent = cursorOnLeftHalfOf(entry.rect, s.cursorX) ? 'before' : 'after';
+      return { ...s.hover, intent };
+    }
+    return s.hover;
+  }
+
   function finish(canceled: boolean) {
     if (!session) return;
     const s = session;
@@ -810,7 +825,7 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     if (s.lifted && !canceled) {
       options.onDrop?.({
         source: s.source,
-        ...s.hover
+        ...resolveFinalIntent(s)
       });
     }
   }
