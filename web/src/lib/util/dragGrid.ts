@@ -122,6 +122,22 @@ export interface SlotRect {
   rect: DOMRect;
 }
 
+/** Resolved CSS-grid geometry for a single zone. Used by computeShifts'
+ *  cross-zone target extrapolation so the last real card wraps to row
+ *  N+1 col 0 instead of being pushed off-grid to the right when its
+ *  newIdx would land on a new row. Without this, a folder with one
+ *  full row at lift time gets a horizontal scrollbar mid-drag — the
+ *  shifted card extrapolates by one column-step horizontally and
+ *  ends up past the grid's last track. */
+export interface GridGeometry {
+  /** Number of columns the grid actually creates at lift time. Read
+   *  from `getComputedStyle(grid).gridTemplateColumns` which resolves
+   *  `repeat(auto-fill, 120px)` to an explicit space-separated list. */
+  colCount: number;
+  /** row-gap in px (parsed from CSS `gap`). */
+  rowGap: number;
+}
+
 export interface ComputeShiftsInput {
   sourceZone: string;
   sourceCardId: number;
@@ -131,6 +147,11 @@ export interface ComputeShiftsInput {
   dropIdx: number;
   /** Maps zone name to its full snapshot, sorted by logicalIdx. */
   buckets: Record<string, SlotRect[]>;
+  /** Optional resolved grid geometry per zone. When present, the
+   *  cross-zone target extrapolation wraps to the next row instead
+   *  of stepping horizontally past the last column. Tests omit this
+   *  and fall back to the legacy single-row col-step behaviour. */
+  gridGeometryByZone?: Record<string, GridGeometry>;
   /** When true (merge armed/ready or folder target), all shifts collapse. */
   mergeCollapse: boolean;
 }
@@ -188,11 +209,13 @@ export function computeShifts(input: ComputeShiftsInput): Map<number, { dx: numb
   }
 
   const tgtBucket = buckets[targetZone] ?? [];
+  const tgtGeo = input.gridGeometryByZone?.[targetZone];
   for (const slot of tgtBucket) {
     const i = slot.logicalIdx;
     if (i < dropIdx) continue;
     const newIdx = i + 1;
-    // newIdx may be == bucket.length (extrapolated). Use cellAdvance.
+    // newIdx may be == bucket.length (extrapolated past the last real
+    // slot). With grid geometry we can wrap correctly to the next row.
     const targetSlot = tgtBucket.find((s) => s.logicalIdx === newIdx);
     let dx: number;
     let dy: number;
@@ -200,15 +223,62 @@ export function computeShifts(input: ComputeShiftsInput): Map<number, { dx: numb
       dx = targetSlot.rect.left - slot.rect.left;
       dy = targetSlot.rect.top - slot.rect.top;
     } else {
-      // Extrapolate using the per-step advance from this bucket.
-      const adv = cellAdvance(tgtBucket);
-      if (!adv) continue;
-      dx = adv.dx;
-      dy = adv.dy;
+      const targetPos = extrapolateSlotPosition(tgtBucket, newIdx, tgtGeo);
+      if (!targetPos) continue;
+      dx = targetPos.left - slot.rect.left;
+      dy = targetPos.top - slot.rect.top;
     }
     result.set(slot.cardId, { dx, dy });
   }
   return result;
+}
+
+/** Predicts the (left, top) of a virtual slot at `newIdx` past the last
+ *  real slot in `bucket`. Geometry-aware when `geo` is provided: wraps
+ *  to row N+1 col 0 when newIdx crosses a column boundary, which is the
+ *  CSS-grid behaviour at drop time. Without geometry, falls back to a
+ *  single per-step advance from the last real slot — correct for one
+ *  step within the current row, off-grid past it. */
+function extrapolateSlotPosition(
+  bucket: SlotRect[],
+  newIdx: number,
+  geo: GridGeometry | undefined
+): { left: number; top: number } | null {
+  if (bucket.length === 0) return null;
+  const slot0 = bucket.find((s) => s.logicalIdx === 0);
+  if (!slot0) return null;
+
+  if (geo && geo.colCount > 0) {
+    const slot1 = bucket.find((s) => s.logicalIdx === 1);
+    const colAdvance = slot1 ? slot1.rect.left - slot0.rect.left : slot0.rect.width;
+    // Prefer measuring the row step from an existing 2nd-row slot;
+    // when the bucket is single-row, fall back to (cardHeight + rowGap).
+    let rowAdvance = 0;
+    for (const s of bucket) {
+      if (Math.floor(s.logicalIdx / geo.colCount) === 1) {
+        rowAdvance = s.rect.top - slot0.rect.top;
+        break;
+      }
+    }
+    if (rowAdvance === 0) rowAdvance = slot0.rect.height + geo.rowGap;
+
+    const col = newIdx % geo.colCount;
+    const row = Math.floor(newIdx / geo.colCount);
+    return {
+      left: slot0.rect.left + col * colAdvance,
+      top: slot0.rect.top + row * rowAdvance
+    };
+  }
+
+  // Legacy single-row extrapolation.
+  const adv = cellAdvance(bucket);
+  if (!adv) return null;
+  const lastReal = bucket.reduce((max, s) => (s.logicalIdx > max.logicalIdx ? s : max), bucket[0]);
+  const steps = newIdx - lastReal.logicalIdx;
+  return {
+    left: lastReal.rect.left + adv.dx * steps,
+    top: lastReal.rect.top + adv.dy * steps
+  };
 }
 
 /** Per-step displacement vector between consecutive slot rects in a zone. */
@@ -237,6 +307,10 @@ export interface LayoutCache {
    *  Built once at lift / cache rebuild so the per-rAF publishShifts
    *  doesn't reallocate. */
   bucketsRecord: Record<string, SlotRect[]>;
+  /** Resolved CSS-grid geometry per zone. Drives wrap-aware extrapolation
+   *  in computeShifts. Absent for zones whose grid container can't be
+   *  resolved (defensive — callers fall back to legacy col-step). */
+  gridGeometryByZone: Record<string, GridGeometry>;
 }
 
 /**
@@ -256,6 +330,15 @@ export function buildLayoutCache(node: HTMLElement): LayoutCache {
     if (!meta) return; // skip add-tile sentinel and malformed
     collected.push({ cell, meta, rect: cell.getBoundingClientRect() });
   });
+  // Track one grid-container element per zone (the cell's parent in
+  // both root and folder templates is the [data-zone] grid div) so we
+  // can read CSS-resolved column count and row gap.
+  const gridByZone = new Map<string, HTMLElement>();
+  for (const { cell, meta } of collected) {
+    if (gridByZone.has(meta.zone)) continue;
+    const parent = cell.parentElement;
+    if (parent instanceof HTMLElement) gridByZone.set(meta.zone, parent);
+  }
   // Group by zone, sort by document order (which mirrors logicalIdx
   // because the grid renders in sortOrder).
   const byZoneRaw = new Map<string, Array<{ meta: CardMeta; rect: DOMRect }>>();
@@ -298,7 +381,22 @@ export function buildLayoutCache(node: HTMLElement): LayoutCache {
   // every rAF tick by publishShifts.
   const bucketsRecord: Record<string, SlotRect[]> = {};
   for (const [zone, slots] of byZone) bucketsRecord[zone] = slots;
-  return { byZone, byCardId, cellAdvanceByZone, bucketsRecord };
+  // Read CSS-grid geometry per zone for wrap-aware extrapolation.
+  const gridGeometryByZone: Record<string, GridGeometry> = {};
+  for (const [zone, gridEl] of gridByZone) {
+    const cs = getComputedStyle(gridEl);
+    // gridTemplateColumns resolves repeat(auto-fill, 120px) to an
+    // explicit list like "120px 120px 120px 120px" — count entries.
+    const cols = cs.gridTemplateColumns
+      .split(' ')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const colCount = cols.length;
+    if (colCount <= 0) continue;
+    const rowGap = parseFloat(cs.rowGap) || 0;
+    gridGeometryByZone[zone] = { colCount, rowGap };
+  }
+  return { byZone, byCardId, cellAdvanceByZone, bucketsRecord, gridGeometryByZone };
 }
 
 /**
@@ -322,6 +420,19 @@ interface DragSession {
   cloneOffsetX: number;
   cloneOffsetY: number;
   rafToken: number | null;
+  /** Source cell's physical dimensions captured at lift. Card width
+   *  and height don't change mid-drag (responsive breakpoints don't
+   *  shift while pointer is held), so we cache once and reuse for
+   *  classifyIntent's overlap math. Reading these from layoutCache is
+   *  unsafe: rebuildLayoutCache after spring-load runs while the
+   *  source's folder panel has been unmounted by onHoverZoneChange,
+   *  so the rebuilt cache has no entry for source.id. With that
+   *  fallback giving 0×0 dims, classifyIntent's overlapArea falls to
+   *  zero and never returns 'merge', so isMergeFolder/isMergeItem
+   *  never trip — meaning a release on a folder card after spring-
+   *  load reorders next to the folder instead of reparenting into it. */
+  sourceLiftWidth: number;
+  sourceLiftHeight: number;
   // Existing spring-load timer (folder panel auto-open).
   dwellTimer: ReturnType<typeof setTimeout> | null;
   dwellTargetId: number | null;
@@ -460,6 +571,8 @@ export function dragGrid(
       clone: null,
       cloneOffsetX: 0,
       cloneOffsetY: 0,
+      sourceLiftWidth: 0,
+      sourceLiftHeight: 0,
       rafToken: null,
       dwellTimer: null,
       dwellTargetId: null,
@@ -549,6 +662,8 @@ export function dragGrid(
     const r = session.sourceCell.getBoundingClientRect();
     session.cloneOffsetX = e.clientX - r.left;
     session.cloneOffsetY = e.clientY - r.top;
+    session.sourceLiftWidth = r.width;
+    session.sourceLiftHeight = r.height;
 
     const clone = session.sourceCell.cloneNode(true) as HTMLElement;
     clone.removeAttribute('data-card-id');
@@ -588,16 +703,19 @@ export function dragGrid(
   function computeHover(s: DragSession): DragHoverInfo {
     const { cursorX, cursorY, source } = s;
     // The dragged card's current screen rect — needed for overlap-based
-    // merge classification. Falls back to the source cell's lifted rect
-    // when the layoutCache snapshot is missing.
-    const sourceRect = s.layoutCache?.byCardId.get(source.id)?.rect;
-    const draggedW = sourceRect?.width ?? 0;
-    const draggedH = sourceRect?.height ?? 0;
+    // merge classification. Width/height come from the lift-time snapshot
+    // (s.sourceLiftWidth/Height), not from layoutCache: after spring-
+    // load rebuilds the cache, the source's folder panel has already
+    // been unmounted by onHoverZoneChange, so byCardId.get(source.id)
+    // returns undefined. Card dimensions don't change mid-drag anyway,
+    // so the lift-time values are the right reference for the entire
+    // session. Position still comes from cursor + cloneOffset because
+    // the dragged clone follows the cursor.
     const draggedRect = new DOMRect(
       cursorX - s.cloneOffsetX,
       cursorY - s.cloneOffsetY,
-      draggedW,
-      draggedH
+      s.sourceLiftWidth,
+      s.sourceLiftHeight
     );
     const stack = document.elementsFromPoint(cursorX, cursorY);
     let hoverZone: string | null = null;
@@ -643,17 +761,28 @@ export function dragGrid(
     // Folders can't be nested inside other cards (folder source can
     // only ever be reordered), so we only arm merge candidates when
     // the source is an item.
+    //
+    // Both also gate on target.zone === 'root'. Inside an open folder
+    // panel a "merge" cursor is ambiguous (you can't nest folders, and
+    // every child is already in a folder), so the drop handler in
+    // +page.svelte coerces merge→before/after there. We mirror that
+    // here so the halo never lights up on a target the drop won't
+    // honour — otherwise the user sees a blue ring promising auto-
+    // folder while a release silently reorders instead.
     const sourceIsItem = session.source.kind === 'item';
+    const targetInRoot = next.target?.zone === 'root';
     const isMergeItem =
       sourceIsItem &&
       next.intent === 'merge' &&
       next.target?.kind === 'item' &&
-      next.target.id != null;
+      next.target.id != null &&
+      targetInRoot;
     const isMergeFolder =
       sourceIsItem &&
       next.intent === 'merge' &&
       next.target?.kind === 'folder' &&
-      next.target.id != null;
+      next.target.id != null &&
+      targetInRoot;
 
     if (!isMergeItem && !isMergeFolder) {
       if (session.mergeArmTargetId != null) cancelMergeArm();
@@ -675,15 +804,23 @@ export function dragGrid(
       }
     }
 
-    // --- Spring-load (folder panel auto-open) — unchanged behavior ---
-    // Restrict to: source.kind === 'item' AND source.zone === 'root' AND
-    // target.kind === 'folder'. Same conditions as before.
+    // --- Spring-load (folder panel auto-open) ---
+    // Fires when an item-card source dwells on a folder-kind target. We
+    // intentionally do NOT restrict by source.zone: dragging a child
+    // card from one folder to another folder in root needs the second
+    // folder to spring open the same way root→folder does. When the
+    // source folder's panel is still mounted, the cursor is physically
+    // inside the panel (fixed-position, z-index 80+) and
+    // elementsFromPoint never resolves to a root folder card behind it,
+    // so spring-load can't accidentally fire on the wrong target. Once
+    // the cursor crosses out, onHoverZoneChange unmounts that panel,
+    // root becomes hit-testable, and dwell on the new folder card
+    // re-opens correctly.
     const isSpringTarget =
       next.intent === 'merge' &&
       next.target?.kind === 'folder' &&
       next.target.id != null &&
-      session.source.kind === 'item' &&
-      session.source.zone === 'root';
+      session.source.kind === 'item';
     const sameTarget = prev.target?.id === next.target?.id && prev.intent === next.intent;
     if (!sameTarget) cancelDwell();
     if (isSpringTarget && session.dwellTargetId !== next.target!.id) {
@@ -718,12 +855,31 @@ export function dragGrid(
     const lc = session.layoutCache;
     const target = next.target;
     // Determine whether merge gate is active (collapse all shifts).
+    // Three cases collapse:
+    //   1. Folder targets — releasing here is always merge-into-folder.
+    //   2. Root item targets after the dwell timer has fired (mergeArmFired
+    //      ⇒ release will auto-folder).
+    //   3. Item targets inside an open folder panel — the drop handler
+    //      coerces merge→before there (no nested folders), so previewing
+    //      a moving stack while the cursor sits in the centre would just
+    //      twitch between left- and right-half snap predictions and end
+    //      with the user seeing a different layout than they aimed at.
+    //      Collapsing matches the OLD pre-halo-gate behaviour minus the
+    //      blue ring (which is suppressed in applyHover for the same
+    //      target.zone reason).
     const mergeCollapse =
       target != null &&
       next.intent === 'merge' &&
-      (target.kind === 'folder' || session.mergeArmFired);
+      (target.kind === 'folder' || session.mergeArmFired || target.zone !== 'root');
     if (mergeCollapse) {
-      setShifts(new Map());
+      // Don't open an insertion gap, but DO close the source's own
+      // gap so its hidden slot doesn't show as a visible empty space
+      // between siblings (the source cell stays opacity:0 in its CSS-
+      // grid slot to keep the layout cache rect stable, so without
+      // this shift you'd see e.g. row-2 PRC and yellow-folder spaced
+      // 6× wider than the column gap because source sits between
+      // them invisibly).
+      setShifts(computeSourceGapClose(session));
       return;
     }
 
@@ -752,9 +908,36 @@ export function dragGrid(
         targetZone,
         dropIdx,
         buckets: lc.bucketsRecord,
+        gridGeometryByZone: lc.gridGeometryByZone,
         mergeCollapse: false
       })
     );
+  }
+
+  /** Shifts every non-source slot in the source's own zone whose
+   *  logicalIdx is greater than the source's by one slot earlier, so
+   *  the source's hidden CSS-grid slot doesn't appear as a visible
+   *  gap when shifts are otherwise suppressed (mergeCollapse path).
+   *  Same math as computeShifts' cross-zone source-zone close-gap loop,
+   *  isolated for callers that want close-only without insertion. */
+  function computeSourceGapClose(s: DragSession): Map<number, { dx: number; dy: number }> {
+    const result = new Map<number, { dx: number; dy: number }>();
+    if (!s.layoutCache) return result;
+    if (s.sourceLogicalIdx < 0) return result;
+    const srcBucket = s.layoutCache.byZone.get(s.source.zone) ?? [];
+    for (const slot of srcBucket) {
+      if (slot.cardId === s.source.id) continue;
+      const i = slot.logicalIdx;
+      if (i <= s.sourceLogicalIdx) continue;
+      const newIdx = i - 1;
+      const targetSlot = srcBucket.find((sl) => sl.logicalIdx === newIdx);
+      if (!targetSlot) continue;
+      result.set(slot.cardId, {
+        dx: targetSlot.rect.left - slot.rect.left,
+        dy: targetSlot.rect.top - slot.rect.top
+      });
+    }
+    return result;
   }
 
   // Returns the post-removal drop idx in `zone` for a cursor at
