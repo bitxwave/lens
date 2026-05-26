@@ -213,6 +213,9 @@ export interface CardIdEntry {
 export interface LayoutCache {
   byZone: Map<string, SlotRect[]>; // sorted by logicalIdx
   byCardId: Map<number, CardIdEntry>;
+  /** Per-zone displacement vector between consecutive slots. Absent for
+   *  zones with <2 cells (single-slot zones can't infer an advance);
+   *  callers must handle a missing entry gracefully. */
   cellAdvanceByZone: Map<string, { dx: number; dy: number }>;
 }
 
