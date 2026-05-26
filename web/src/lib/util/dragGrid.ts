@@ -492,6 +492,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     clone.style.transform = `translate(${r.left}px, ${r.top}px) scale(${CLONE_LIFT_SCALE})`;
     document.body.appendChild(clone);
 
+    session.layoutCache = buildLayoutCache(node);
+    const srcEntry = session.layoutCache.byCardId.get(session.source.id);
+    session.sourceLogicalIdx = srcEntry?.logicalIdx ?? 0;
+
     session.sourceCell.dataset.dragging = 'true';
     session.lifted = true;
     session.clone = clone;
@@ -546,27 +550,37 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
       options.onHoverZoneChange?.(prev.hoverZone, next.hoverZone);
     }
 
-    if (next.intent === 'merge' && next.target) {
-      // Phase is set to 'ready' here to preserve pre-change behavior;
-      // Task 5 (Wire dwell in applyHover) replaces this with the real
-      // armed/ready transition.
-      mergeCandidate.set({ id: next.target.id, kind: next.target.kind, phase: 'ready' });
-    } else {
-      mergeCandidate.set(null);
+    // --- Merge dwell state machine ---
+    // Item targets need a 200ms arm gate. Folder targets are immediate.
+    // Non-merge intent or different target → cancel arming.
+    const isMergeItem =
+      next.intent === 'merge' && next.target?.kind === 'item' && next.target.id != null;
+    const isMergeFolder =
+      next.intent === 'merge' && next.target?.kind === 'folder' && next.target.id != null;
+
+    if (!isMergeItem && !isMergeFolder) {
+      if (session.mergeArmTargetId != null) cancelMergeArm();
+    } else if (isMergeItem) {
+      if (session.mergeArmTargetId !== next.target!.id) {
+        // Switching targets: restart arming.
+        startMergeArmForItem(next.target!.id, 'item');
+      } else if (!session.mergeArmFired) {
+        // Pre-arm jitter check.
+        const dx = session.cursorX - session.mergeArmStartX;
+        const dy = session.cursorY - session.mergeArmStartY;
+        if (Math.hypot(dx, dy) > MERGE_CANCEL_MOVE_PX) {
+          startMergeArmForItem(next.target!.id, 'item'); // restart from current pos
+        }
+      }
+    } else if (isMergeFolder) {
+      if (session.mergeArmTargetId !== next.target!.id) {
+        setMergeImmediateForFolder(next.target!.id);
+      }
     }
 
-    // Spring-load opens a folder under the cursor when the user is
-    // hovering it with merge intent. Restrict it to:
-    //   - source.kind === 'item': folders can't be nested inside other
-    //     folders, so dragging a folder onto another folder is only ever
-    //     a reorder gesture in handleDrop — opening the target folder
-    //     just hides the destination slot from view. Same for
-    //     folder-on-item: there's no merge semantic, only reorder.
-    //   - source.zone === 'root': once the user has lifted a card out
-    //     of folder A, them brushing past folder B on the way to a root
-    //     slot should NOT auto-open B and capture the drop. Cross-folder
-    //     moves can still be done by releasing into root first, then
-    //     re-dragging into B.
+    // --- Spring-load (folder panel auto-open) — unchanged behavior ---
+    // Restrict to: source.kind === 'item' AND source.zone === 'root' AND
+    // target.kind === 'folder'. Same conditions as before.
     const isSpringTarget =
       next.intent === 'merge' &&
       next.target?.kind === 'folder' &&
@@ -585,6 +599,63 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
         options.onSpringLoad?.(tid);
       }, HOVER_DWELL_MS);
     }
+
+    // --- Shift compute and publish ---
+    publishShifts(next);
+  }
+
+  function publishShifts(next: DragHoverInfo) {
+    if (!session || !session.layoutCache) {
+      cellShifts.set(new Map());
+      return;
+    }
+    const lc = session.layoutCache;
+    const target = next.target;
+    // Determine whether merge gate is active (collapse all shifts).
+    const mergeCollapse =
+      target != null &&
+      next.intent === 'merge' &&
+      (target.kind === 'folder' || session.mergeArmFired);
+
+    // Determine target zone + dropIdx.
+    let targetZone: string | null = null;
+    let dropIdx = 0;
+    if (target) {
+      targetZone = target.zone;
+      const tEntry = lc.byCardId.get(target.id);
+      if (!tEntry) {
+        cellShifts.set(new Map());
+        return;
+      }
+      // For pre-arm item merge, fall through to side-based.
+      let effIntent: DropIntent = next.intent ?? 'after';
+      if (effIntent === 'merge' && target.kind === 'item' && !session.mergeArmFired) {
+        effIntent = cursorOnLeftHalfOf(tEntry.rect, session.cursorX) ? 'before' : 'after';
+      }
+      dropIdx = effIntent === 'before' ? tEntry.logicalIdx : tEntry.logicalIdx + 1;
+    } else if (next.hoverZone) {
+      // No target but inside a zone → append at end.
+      targetZone = next.hoverZone;
+      const bucket = lc.byZone.get(targetZone) ?? [];
+      dropIdx = bucket.length;
+    } else {
+      cellShifts.set(new Map());
+      return;
+    }
+
+    const buckets: Record<string, SlotRect[]> = {};
+    for (const [zone, slots] of lc.byZone) buckets[zone] = slots;
+
+    const shifts = computeShifts({
+      sourceZone: session.source.zone,
+      sourceCardId: session.source.id,
+      sourceLogicalIdx: session.sourceLogicalIdx,
+      targetZone,
+      dropIdx,
+      buckets,
+      mergeCollapse
+    });
+    cellShifts.set(shifts);
   }
 
   function cancelDwell() {
