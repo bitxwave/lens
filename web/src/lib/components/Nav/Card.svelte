@@ -7,7 +7,7 @@
   import { navDataStore } from '$lib/stores/navData';
   import { deleteCard } from '$lib/api/cards';
   import { toast } from '$lib/components/ui/toast';
-  import { mergeCandidate } from '$lib/stores/dragMerge';
+  import { mergeCandidate, cellShifts } from '$lib/stores/dragMerge';
 
   interface Props {
     card: Card;
@@ -21,6 +21,11 @@
 
   const isItem = $derived(card.kind === 'item');
   const isFolder = $derived(card.kind === 'folder');
+
+  const shift = $derived($cellShifts.get(card.id) ?? { dx: 0, dy: 0 });
+  const mergePhase = $derived(
+    $mergeCandidate?.id === card.id ? $mergeCandidate.phase : null
+  );
 
   const url = $derived(
     isItem && $currentSite.site && card.links ? (card.links[$currentSite.site.value] ?? null) : null
@@ -100,9 +105,13 @@
 <div
   class="cell"
   class:jiggle={$jiggleMode}
-  class:merge-target={$mergeCandidate?.id === card.id}
+  class:merge-armed={mergePhase === 'armed'}
+  class:merge-ready={mergePhase === 'ready'}
   data-card-id={card.id}
   data-card-kind={card.kind}
+  style:transform={shift.dx === 0 && shift.dy === 0
+    ? null
+    : `translate(${shift.dx}px, ${shift.dy}px)`}
   use:longPress={{ onTrigger: onLongPress }}
 >
   {#if $jiggleMode}
@@ -162,6 +171,20 @@
     user-select: none;
     -webkit-user-drag: none;
   }
+  /* Reorder preview translation. The cell uses `style:transform` set by
+   * cellShifts; this keeps the inner card/folder element free for the
+   * jiggle and merge-state transforms (they don't compose otherwise). */
+  .cell {
+    transition: transform var(--shift-duration, 220ms) cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  /* While this cell is the active drag source, hide it so the empty
+   * slot is visible at the source's logical position. The clone follows
+   * the cursor (managed by dragGrid). pointer-events:none keeps the
+   * hidden cell from intercepting elementsFromPoint hits. */
+  .cell[data-dragging='true'] {
+    opacity: 0;
+    pointer-events: none;
+  }
   /* Wobble lives on .card / .folder (inner element), not .cell. The
    * outer .cell may receive a transient transform (e.g. translation
    * during drag); animating an inner element keeps .cell's transform
@@ -192,10 +215,24 @@
   .cell.jiggle:nth-child(3n) .folder {
     animation-delay: -160ms;
   }
-  /* Visual cue for "release here to merge / reparent". The hover
-   * threshold (500ms) flips this on by setting the cell class. */
-  .cell.merge-target .card,
-  .cell.merge-target .folder {
+  /* Visual cue for "release here to merge / reparent". Two tiers:
+   * - merge-armed: appears at MERGE_ARM_MS (200 ms) into a stationary
+   *   hover. Faint halo + small scale. Releasing here ALSO commits a
+   *   merge (the gate is "armed", not "ready").
+   * - merge-ready: promotes at MERGE_READY_MS (600 ms). Stronger halo,
+   *   larger scale. Functionally identical to armed for drop, but a
+   *   clearer "release now = build folder" signal.
+   * Folder targets are always set to ready immediately. */
+  .cell.merge-armed .card,
+  .cell.merge-armed .folder {
+    box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.5);
+    transform: scale(1.02);
+    transition:
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
+  }
+  .cell.merge-ready .card,
+  .cell.merge-ready .folder {
     box-shadow:
       0 0 0 4px var(--c-accent, #4a6cf7),
       0 0 22px rgba(74, 108, 247, 0.55);
