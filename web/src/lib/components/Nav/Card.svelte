@@ -24,6 +24,14 @@
 
   const shift = $derived($cellShifts.get(card.id) ?? { dx: 0, dy: 0 });
   const mergePhase = $derived($mergeCandidate?.id === card.id ? $mergeCandidate.phase : null);
+  // Jiggle animation delay derived from the card's stable id, NOT its
+  // DOM position. Using `:nth-child(3n+2)` style selectors makes
+  // `animation-delay` change whenever the grid is reordered (after a
+  // drag commit), which snaps each affected card's animation to a new
+  // phase — the user sees this as a flicker. Computing the offset
+  // from `card.id` keeps each card's wobble continuous across
+  // reorders.
+  const jiggleDelay = $derived(`${(card.id % 3) * -80}ms`);
 
   const url = $derived(
     isItem && $currentSite.site && card.links ? (card.links[$currentSite.site.value] ?? null) : null
@@ -107,6 +115,7 @@
   class:merge-ready={mergePhase === 'ready'}
   data-card-id={card.id}
   data-card-kind={card.kind}
+  style:--jiggle-delay={jiggleDelay}
   style:transform={shift.dx === 0 && shift.dy === 0
     ? null
     : `translate(${shift.dx}px, ${shift.dy}px)`}
@@ -201,22 +210,17 @@
   .cell.jiggle:active {
     cursor: grabbing;
   }
+  /* Phase-stagger via per-card CSS variable derived from card.id (set
+   * inline by the template). Avoids :nth-child selectors, which would
+   * re-bind the delay whenever the grid is reordered, snapping the
+   * animation into a new phase and producing a visible flicker on
+   * drop. */
   .cell.jiggle .card,
   .cell.jiggle .folder {
     animation: jiggle-shake 0.25s ease-in-out infinite;
+    animation-delay: var(--jiggle-delay, 0ms);
     transform-origin: center;
     cursor: inherit;
-  }
-  /* Phase-stagger: avoid every card jiggling in lock-step (LaunchPad
-   * clue §4 "each card's phase offset"). Three offsets across 0/+80/
-   * +160 ms cover the 250 ms period nicely. */
-  .cell.jiggle:nth-child(3n + 2) .card,
-  .cell.jiggle:nth-child(3n + 2) .folder {
-    animation-delay: -80ms;
-  }
-  .cell.jiggle:nth-child(3n) .card,
-  .cell.jiggle:nth-child(3n) .folder {
-    animation-delay: -160ms;
   }
   /* Visual cue for "release here to merge / reparent". Two tiers:
    * - merge-armed: appears at MERGE_ARM_MS (200 ms) into a stationary
