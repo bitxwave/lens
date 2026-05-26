@@ -596,7 +596,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     session.dwellTargetId = null;
   }
 
-  function cancelMergeArm() {
+  // Internal: clear timers + arming state, but leave mergeCandidate alone.
+  // Used when transitioning into a NEW merge candidate (e.g. swapping
+  // targets) so subscribers don't see a transient null pulse.
+  function clearMergeArmInternal() {
     if (!session) return;
     if (session.mergeArmTimer) {
       clearTimeout(session.mergeArmTimer);
@@ -608,14 +611,19 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
     }
     session.mergeArmTargetId = null;
     session.mergeArmFired = false;
+  }
+
+  function cancelMergeArm() {
+    clearMergeArmInternal();
     mergeCandidate.set(null);
   }
 
   function startMergeArmForItem(targetId: number, kind: CardKind) {
     if (!session) return;
+    // Switching targets: clear previous candidate so any subscriber sees
+    // null in between (matches reorder semantics — no card is "merging").
     cancelMergeArm();
     session.mergeArmTargetId = targetId;
-    session.mergeArmFired = false;
     session.mergeArmStartX = session.cursorX;
     session.mergeArmStartY = session.cursorY;
 
@@ -643,7 +651,10 @@ export function dragGrid(node: HTMLElement, opts: DragGridOptions) {
 
   function setMergeImmediateForFolder(targetId: number) {
     if (!session) return;
-    cancelMergeArm();
+    // Folders go straight to ready — skip the null-pulse that
+    // cancelMergeArm would emit, since subscribers should transition
+    // directly from prior state to this folder being ready.
+    clearMergeArmInternal();
     session.mergeArmTargetId = targetId;
     session.mergeArmFired = true;
     mergeCandidate.set({ id: targetId, kind: 'folder', phase: 'ready' });
