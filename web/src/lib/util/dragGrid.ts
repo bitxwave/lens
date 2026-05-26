@@ -80,8 +80,14 @@ export interface DragGridOptions {
    * the folder panel when the user starts dragging a card out of it.
    */
   onHoverZoneChange?: (prev: string | null, next: string | null) => void;
-  /** Called on pointerup. Consumer commits the drop. */
-  onDrop?: (info: DragDropInfo) => void;
+  /** Called on pointerup. Consumer commits the drop. May be async; if it
+   *  returns a Promise, dragGrid keeps the visual drag state (`cellShifts`,
+   *  `data-dragging`, `mergeCandidate`) in place until the Promise resolves,
+   *  then clears it in the same microtask as the consumer's data refetch.
+   *  This avoids a "snap back to original positions, then snap to new
+   *  positions" flicker when the consumer is committing a server-side
+   *  reorder. */
+  onDrop?: (info: DragDropInfo) => void | Promise<void>;
 }
 
 const LIFT_THRESHOLD_PX = 5;
@@ -932,7 +938,6 @@ export function dragGrid(
       s.clone.remove();
       s.clone = null;
     }
-    delete s.sourceCell.dataset.dragging;
 
     try {
       s.sourceCell.releasePointerCapture(s.pointerId);
@@ -940,42 +945,60 @@ export function dragGrid(
       /* ignore */
     }
 
-    // Suppress the cell transform transition while we clear the
-    // shifts. Otherwise the snap-back from "shifted" to "0" animates
-    // for 220ms while handleDrop's reorder API + refetch land in
-    // parallel, producing a visible flicker as cells transition while
-    // their DOM positions also change. After two frames (data has
-    // settled) we restore the inline style so future drags animate
-    // again.
+    // Visual drag state (cellShifts, data-dragging, mergeCandidate,
+    // dragSource) is the union of "what the user sees mid-drag" and
+    // must stay coherent with the data the cards bind to. If we tear
+    // it down synchronously while the consumer is still committing a
+    // server-side reorder, the cells snap back to their pre-drag
+    // logical positions, then snap forward to the new positions when
+    // the refetch lands — a visible double flicker on the dropped
+    // card and its neighbors.
+    //
+    // Strategy: cleanupVisualState below clears all of it in one
+    // microtask. We run it either (a) immediately for a canceled drag
+    // / synchronous onDrop, or (b) after onDrop's Promise resolves —
+    // which by convention means the consumer has finished both the
+    // server roundtrip and the store refetch, so the next Svelte
+    // render flush will see new data AND cleared shifts in the same
+    // pass. No flicker.
     const cells =
       s.lifted && !canceled
         ? Array.from(node.querySelectorAll<HTMLElement>('[data-card-id]'))
         : [];
+    // While we wait, suppress transitions on the cells so the eventual
+    // shift-clear is an instant snap rather than a 220ms slide. With
+    // Strategy (b) the snap is invisible because data + shifts clear
+    // in lockstep.
     for (const cell of cells) cell.style.transition = 'none';
 
-    mergeCandidate.set(null);
-    dragSource.set(null);
-    // Reset both store and dedup tracker so the next drag session
-    // starts from a clean baseline.
-    cellShifts.set(new Map());
-    lastPublishedShifts = new Map();
+    const cleanupVisualState = () => {
+      delete s.sourceCell.dataset.dragging;
+      mergeCandidate.set(null);
+      dragSource.set(null);
+      cellShifts.set(new Map());
+      lastPublishedShifts = new Map();
+      if (cells.length) {
+        // Two rAF frames is empirically enough for the data render to
+        // flush before we restore transitions.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            for (const cell of cells) cell.style.transition = '';
+          });
+        });
+      }
+    };
 
     if (s.lifted && !canceled) {
-      options.onDrop?.({
+      const result = options.onDrop?.({
         source: s.source,
         ...resolveFinalIntent(s)
       });
+      if (result && typeof (result as Promise<void>).then === 'function') {
+        (result as Promise<void>).then(cleanupVisualState, cleanupVisualState);
+        return;
+      }
     }
-
-    if (cells.length) {
-      // Two rAF frames is empirically enough for refetch + reactive
-      // re-render to land before transitions resume.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          for (const cell of cells) cell.style.transition = '';
-        });
-      });
-    }
+    cleanupVisualState();
   }
 
   if (browser) {
