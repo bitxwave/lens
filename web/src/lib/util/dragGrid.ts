@@ -105,14 +105,6 @@ const MERGE_CANCEL_MOVE_PX = 8; // jitter tolerance during pre-arm
  *  keep CSS in sync. Card.svelte falls back to this value if the var
  *  is unset. */
 export const SHIFT_DURATION_MS = 220;
-/** Synthetic cardId for the "+ new item" affordance. Page templates
- *  mark the affordance container with `data-add-cell` so dragGrid can
- *  treat it as a phantom slot in the layout cache. The page renders
- *  the affordance's transform from `cellShifts.get(ADD_CELL_CARD_ID)`,
- *  the same way `Card.svelte` reads its own shift. This way when a
- *  card is displaced into the affordance's slot, the affordance moves
- *  along instead of being overlapped. */
-export const ADD_CELL_CARD_ID = -1;
 // SHIFT_EASE is exposed via CSS variable on Card.svelte; not needed here
 const HOVER_DWELL_MS = 500; // existing spring-load (unchanged)
 const EDGE_PAN_THRESHOLD_PX = 80;
@@ -290,29 +282,12 @@ export function buildLayoutCache(node: HTMLElement): LayoutCache {
       });
     }
   }
-  // Append the "+ new item" affordance(s) as phantom slots so cards
-  // displaced past the last real card push the affordance along
-  // instead of overlapping it. Real cards live in [data-card-id];
-  // affordances are marked with [data-add-cell].
-  const addCells = node.querySelectorAll<HTMLElement>('[data-add-cell]');
-  addCells.forEach((addCell) => {
-    const zoneEl = addCell.closest('[data-zone]') as HTMLElement | null;
-    if (!zoneEl || !node.contains(zoneEl)) return;
-    const zone = zoneEl.dataset.zone ?? 'root';
-    const slots = byZone.get(zone) ?? [];
-    const phantom: SlotRect = {
-      zone,
-      logicalIdx: slots.length,
-      cardId: ADD_CELL_CARD_ID,
-      kind: 'item',
-      rect: addCell.getBoundingClientRect()
-    };
-    slots.push(phantom);
-    byZone.set(zone, slots);
-    // Intentionally NOT added to byCardId: the affordance is not a
-    // valid drop target. resolveDropIdx / resolveFinalIntent skip
-    // synthetic slots when picking the cursor's anchor.
-  });
+  // The "+ new item" affordance is hidden visually during an active
+  // drag (via CSS rule on .canvas:has([data-card-id][data-dragging])
+  // .add-cell { visibility: hidden }), so it doesn't need to be in
+  // the layout cache. Keeping it out also avoids the bookkeeping
+  // around phantom-slot extrapolation, which couldn't reliably wrap
+  // to the next row in CSS auto-fill grids.
   // Per-zone cellAdvance for extrapolation.
   const cellAdvanceByZone = new Map<string, { dx: number; dy: number }>();
   for (const [zone, slots] of byZone) {
@@ -800,9 +775,6 @@ export function dragGrid(
     let nearestDist = Infinity;
     for (const slot of slots) {
       if (slot.cardId === session.source.id) continue;
-      // Phantom slots (e.g. the "+" affordance) participate in the
-      // shift math but aren't valid drop anchors — pick a real card.
-      if (slot.cardId === ADD_CELL_CARD_ID) continue;
       const cx = slot.rect.left + slot.rect.width / 2;
       const cy = slot.rect.top + slot.rect.height / 2;
       const d = Math.hypot(cursorX - cx, cursorY - cy);
@@ -812,7 +784,7 @@ export function dragGrid(
       }
     }
     if (!nearest) {
-      // Empty zone (or only source/phantom in it) → drop at index 0.
+      // Empty zone (or only source in it) → drop at index 0.
       return 0;
     }
     const isLeft = cursorOnLeftHalfOf(nearest.rect, cursorX);
@@ -931,8 +903,6 @@ export function dragGrid(
       let nearestDist = Infinity;
       for (const slot of slots) {
         if (slot.cardId === s.source.id) continue;
-        // Phantom slots ("+" affordance) aren't drop targets.
-        if (slot.cardId === ADD_CELL_CARD_ID) continue;
         const cx = slot.rect.left + slot.rect.width / 2;
         const cy = slot.rect.top + slot.rect.height / 2;
         const d = Math.hypot(s.cursorX - cx, s.cursorY - cy);
