@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Ship a production-ready single-image deploy. After this plan: `docker run -d -p 8080:8080 -v ./data:/app/data -e BOOTSTRAP_ADMIN_PASSWORD=… navsrv:latest` boots the full stack (Rust backend + SvelteKit SPA bundled together) on port 8080. Optional `docker compose up` adds Caddy with auto-TLS in front. A small Playwright e2e suite verifies the read + login + create flow against a real container. README has the quickstart at the top.
+**Goal:** Ship a production-ready single-image deploy. After this plan: `docker run -d -p 8080:8080 -v ./data:/app/data -e BOOTSTRAP_ADMIN_PASSWORD=… lens:latest` boots the full stack (Rust backend + SvelteKit SPA bundled together) on port 8080. Optional `docker compose up` adds Caddy with auto-TLS in front. A small Playwright e2e suite verifies the read + login + create flow against a real container. README has the quickstart at the top.
 
 **Out of scope (intentionally not in any of the 5 plans):** drag-drop reorder, full Group/Site/Tag management UI, SiteSettingsDialog, icon upload UI, full edit-mode polish. These are listed in the project README as future enhancements.
 
@@ -43,9 +43,9 @@ The current `server/bootstrap.json` is a placeholder (Plan 1 Task 32) with empty
 {
   "schemaVersion": 1,
   "meta": {
-    "siteName": "Pico 的小站导航",
+    "siteName": "Lens",
     "siteAvatarPath": "/avatar.png",
-    "siteCopyright": "Copyright © 2026 Pico. All rights reserved.",
+    "siteCopyright": "",
     "siteIcp": null,
     "sitePolice": null,
     "defaultTheme": "system"
@@ -167,9 +167,9 @@ export interface BootstrapDoc {
 export const BOOTSTRAP: BootstrapDoc = {
   schemaVersion: 1,
   meta: {
-    siteName: 'Pico 的小站导航',
+    siteName: 'Lens',
     siteAvatarPath: '/avatar.png',
-    siteCopyright: 'Copyright © 2026 Pico. All rights reserved.',
+    siteCopyright: '',
     siteIcp: null,
     sitePolice: null,
     defaultTheme: 'system'
@@ -261,16 +261,16 @@ RUN apt-get update && \
 # Cache deps layer
 COPY server/Cargo.toml server/Cargo.lock ./
 RUN mkdir -p src && echo 'fn main(){}' > src/main.rs && \
-    cargo build --release --bin navsrv && \
-    rm -rf src target/release/deps/navsrv* target/release/navsrv
+    cargo build --release --bin lens && \
+    rm -rf src target/release/deps/lens* target/release/lens
 # Real build
 COPY server/ ./
 ENV SQLX_OFFLINE=true
-RUN cargo build --release --bin navsrv
+RUN cargo build --release --bin lens
 
 # ──── Stage 3: runtime ────
 FROM gcr.io/distroless/cc-debian12 AS runtime
-COPY --from=server-build /server/target/release/navsrv /usr/local/bin/navsrv
+COPY --from=server-build /server/target/release/lens /usr/local/bin/lens
 COPY --from=web-build    /web/build                   /app/static
 ENV PORT=8080 \
     DATA_DIR=/app/data \
@@ -280,7 +280,7 @@ ENV PORT=8080 \
 VOLUME /app/data
 EXPOSE 8080
 USER nonroot
-ENTRYPOINT ["/usr/local/bin/navsrv"]
+ENTRYPOINT ["/usr/local/bin/lens"]
 ```
 
 Notes:
@@ -291,7 +291,7 @@ Notes:
 - [ ] **Step 2: Build the image**
 
 ```bash
-docker build -t navsrv:plan5-test . 2>&1 | tail -30
+docker build -t lens:plan5-test . 2>&1 | tail -30
 ```
 
 Use `timeout: 1800000` (30 min) — cold build is heavy. Subsequent builds use cached layers.
@@ -306,19 +306,19 @@ Expected: build succeeds. If a stage fails, inspect the log; common issues:
 ```bash
 mkdir -p /tmp/navdata
 docker run -d \
-  --name navsrv-test \
+  --name lens-test \
   -p 18080:8080 \
   -v /tmp/navdata:/app/data \
   -e BOOTSTRAP_ADMIN_PASSWORD=test1234 \
-  navsrv:plan5-test
+  lens:plan5-test
 sleep 5
-docker logs navsrv-test | tail -20
+docker logs lens-test | tail -20
 curl -sf http://127.0.0.1:18080/api/health
 echo
 curl -sf http://127.0.0.1:18080/api/nav | head -c 200
 echo
 curl -sf -o /tmp/spa.html http://127.0.0.1:18080/ && grep -oE '<title>[^<]+</title>' /tmp/spa.html
-docker stop navsrv-test && docker rm navsrv-test
+docker stop lens-test && docker rm lens-test
 rm -rf /tmp/navdata
 ```
 
@@ -342,7 +342,7 @@ git commit -m "feat(deploy): multi-stage Dockerfile (web + server → distroless
 services:
   nav:
     build: .
-    image: navsrv:latest
+    image: lens:latest
     container_name: nav
     restart: unless-stopped
     environment:
@@ -414,7 +414,7 @@ git commit -m "feat(deploy): docker-compose + Caddyfile (auto-TLS via Let's Encr
 # Usage: bash scripts/docker-smoke.sh
 set -euo pipefail
 
-IMG=navsrv:smoke-$$
+IMG=lens:smoke-$$
 DATA=$(mktemp -d)
 PORT=18080
 PASSWORD=smoke-pw-1234
@@ -533,7 +533,7 @@ Create `package.json` at the repo ROOT (no `pnpm-workspace.yaml` — this is jus
 
 ```json
 {
-  "name": "navigation_website-e2e",
+  "name": "lens-e2e",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -676,7 +676,7 @@ git commit -m "test(e2e): edit flow (login → toggle → create item via dialog
 # scripts/e2e.sh — boot a clean Docker container, run Playwright against it, tear down.
 set -euo pipefail
 
-IMG=navsrv:e2e-$$
+IMG=lens:e2e-$$
 DATA=$(mktemp -d)
 PORT=18080
 PASSWORD=test1234
@@ -754,7 +754,7 @@ docker run -d \
   -p 8080:8080 \
   -v ./data:/app/data \
   -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
-  navsrv:latest
+  lens:latest
 ```
 
 Visit http://localhost:8080. Click **Log in** in the top-right, enter your password,
@@ -768,7 +768,7 @@ For HTTPS with Let's Encrypt, use `docker compose up -d` with the bundled
 | Path | Purpose |
 |---|---|
 | `web/` | SvelteKit 2 + Svelte 5 SPA. `pnpm dev` for local dev (proxies `/api` to `:8080`). |
-| `server/` | Rust binary (`navsrv`). `cargo run` for local dev (default port 8080). |
+| `server/` | Rust binary (`lens`). `cargo run` for local dev (default port 8080). |
 | `tests/` | Playwright e2e specs covering read + login + create. |
 | `scripts/` | `docker-smoke.sh`, `e2e.sh`, `dump-bootstrap.mjs`. |
 | `docs/superpowers/` | Design specs and implementation plans. |
@@ -823,7 +823,7 @@ bash scripts/e2e.sh
 ## Resetting the admin password
 
 ```bash
-docker exec -it nav navsrv reset-password --password=<new>
+docker exec -it nav lens reset-password --password=<new>
 # or interactively (the binary prompts)
 ```
 

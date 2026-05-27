@@ -1,4 +1,4 @@
-# navsrv
+# lens
 
 Rust backend for the navigation site. Single Axum process that serves both the
 SvelteKit SPA static assets and the JSON API. Default port `8080`, override with
@@ -38,8 +38,8 @@ pnpm dev
 ## Build
 
 ```bash
-SQLX_OFFLINE=true cargo build --release --bin navsrv
-# binary at target/release/navsrv; runs against the committed .sqlx/ query cache
+SQLX_OFFLINE=true cargo build --release --bin lens
+# binary at target/release/lens; runs against the committed .sqlx/ query cache
 ```
 
 To regenerate the query cache after schema/query changes:
@@ -51,7 +51,7 @@ DATABASE_URL=sqlite://./dev-data/data.db cargo sqlx prepare
 ## CLI
 
 ```
-navsrv reset-password [--password <new>]   # invalidates all sessions; deletes INITIAL_PASSWORD.txt
+lens reset-password [--password <new>]   # invalidates all sessions; deletes INITIAL_PASSWORD.txt
 ```
 
 ## Tests

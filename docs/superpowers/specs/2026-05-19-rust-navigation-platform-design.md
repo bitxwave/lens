@@ -2,7 +2,6 @@
 
 **Date:** 2026-05-19
 **Status:** Draft for review
-**Owner:** Pico
 **Supersedes:** existing static-only nav site (SvelteKit + adapter-static, hard-coded `nav.ts`)
 
 ---
@@ -397,9 +396,9 @@ export type NavBundle = z.infer<typeof NavBundleSchema>;
 
 ### 6.3 密码恢复（CLI 重置）
 
-- 二进制提供子命令：`navsrv reset-password [--password=<new>]`（不传交互式 prompt）
+- 二进制提供子命令：`lens reset-password [--password=<new>]`（不传交互式 prompt）
 - 流程：
-  - 用户 `docker exec -it nav-container navsrv reset-password`
+  - 用户 `docker exec -it nav-container lens reset-password`
   - 子命令打开同一 SQLite，写入新 bcrypt hash + 更新 `admin_password_updated_at`
   - 立即吊销所有现有 session（`DELETE FROM sessions`）
 - 文档：README 加"忘记密码"段落
@@ -613,20 +612,20 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY server/Cargo.toml server/Cargo.lock ./
 RUN mkdir src && echo 'fn main(){}' > src/main.rs && \
     cargo build --release && \
-    rm -rf src target/release/deps/navsrv* target/release/navsrv*
+    rm -rf src target/release/deps/lens* target/release/lens*
 COPY server/ ./
 COPY --from=web-build /web/build/bootstrap.json ./bootstrap.json
 RUN cargo build --release
 
 # ──── Stage 3: runtime ────
 FROM gcr.io/distroless/cc-debian12
-COPY --from=server-build /server/target/release/navsrv /usr/local/bin/navsrv
+COPY --from=server-build /server/target/release/lens /usr/local/bin/lens
 COPY --from=web-build    /web/build                   /app/static
 ENV PORT=8080 DATA_DIR=/app/data STATIC_DIR=/app/static
 VOLUME /app/data
 EXPOSE 8080
 USER nonroot
-CMD ["navsrv"]
+CMD ["lens"]
 ```
 
 提供 `docker-compose.yml` sample：
@@ -715,8 +714,8 @@ pnpm dev                      # listens :5173, vite proxies /api → localhost:8
 
 ### 9.5 部署运维
 
-- `docker run -d --name nav -p 8080:8080 -v ./data:/app/data -e BOOTSTRAP_ADMIN_PASSWORD=changeme navsrv:latest`
-- 改密码：UI 自助 / `docker exec -it nav navsrv reset-password`
+- `docker run -d --name nav -p 8080:8080 -v ./data:/app/data -e BOOTSTRAP_ADMIN_PASSWORD=changeme lens:latest`
+- 改密码：UI 自助 / `docker exec -it nav lens reset-password`
 - 备份：`rsync ./data /backup/nav/$(date +%F)/`
 - 升级：`docker pull` + 重启容器；schema 自动迁移
 
@@ -753,7 +752,7 @@ pnpm dev                      # listens :5173, vite proxies /api → localhost:8
 - [x] 部署：单 Docker 镜像、单进程、Rust 直接 serve 静态前端
 - [x] 编辑形态：同页"编辑模式"（inline 拖拽 + 双击 + 右键菜单 + dialog）
 - [x] 鉴权：单管理员密码 + bcrypt + signed cookie
-- [x] 密码恢复：CLI 子命令 `navsrv reset-password`
+- [x] 密码恢复：CLI 子命令 `lens reset-password`
 - [x] UI：重建 design system 全新风格（不用 Tailwind）
 - [x] Footer 重做
 - [x] 数据范式：3NF（item × site 多对多 link 表，不用 JSON 列）

@@ -1,7 +1,10 @@
-# Navigation Website
+# Lens
 
 A self-hostable navigation/bookmark dashboard with a Rust backend (Axum + SQLite),
-a SvelteKit SPA frontend, and an inline editor for the admin.
+a SvelteKit SPA frontend, and an inline editor for the admin. Each nav item can
+expose multiple URLs grouped under user-defined "sites" (think work / home,
+or shanghai / beijing) — switch the active site from the header and every card
+re-points to its matching URL without changing the layout.
 
 The Rust binary serves both the JSON API (`/api/*`) and the SvelteKit SPA static
 assets in a single process — no separate web server or reverse proxy required.
@@ -12,11 +15,11 @@ terminator if needed.
 
 ```bash
 docker run -d \
-  --name nav \
+  --name lens \
   -p 8080:8080 \
   -v ./data:/app/data \
   -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
-  navsrv:latest
+  lens:latest
 ```
 
 Visit http://localhost:8080. Click **Log in** in the top-right, enter your password,
@@ -29,7 +32,7 @@ See [Deployment](#deployment) for compose, custom port, and data persistence opt
 | Path | Purpose |
 |---|---|
 | `web/` | SvelteKit 2 + Svelte 5 SPA. `pnpm dev` for local dev (proxies `/api` to `:8080`). |
-| `server/` | Rust binary (`navsrv`). `cargo run` for local dev (default port 8080). |
+| `server/` | Rust binary (`lens`). `cargo run` for local dev (default port 8080). |
 | `tests/` | Playwright e2e specs covering read + login + create. |
 | `scripts/` | `docker-smoke.sh`, `e2e.sh`, `dump-bootstrap.mjs`. |
 | `docs/superpowers/` | Design specs and implementation plans. |
@@ -84,8 +87,8 @@ pnpm build           # outputs to web/build (static assets)
 
 ```bash
 cd server
-SQLX_OFFLINE=true cargo build --release --bin navsrv
-# binary at server/target/release/navsrv
+SQLX_OFFLINE=true cargo build --release --bin lens
+# binary at server/target/release/lens
 ```
 
 Run it with the SPA build directly (no Docker):
@@ -93,13 +96,13 @@ Run it with the SPA build directly (no Docker):
 ```bash
 cd server
 STATIC_DIR=../web/build DATA_DIR=./prod-data \
-  ./target/release/navsrv
+  ./target/release/lens
 ```
 
 ### Docker image
 
 ```bash
-docker build -t navsrv:latest .
+docker build -t lens:latest .
 ```
 
 The multi-stage `Dockerfile`:
@@ -107,7 +110,7 @@ The multi-stage `Dockerfile`:
 2. builds the Rust binary with `rust:1.88-slim` (uses `SQLX_OFFLINE=true` against
    the committed `server/.sqlx/` cache),
 3. assembles a distroless `gcr.io/distroless/cc-debian12` runtime (~70 MB) with
-   the binary at `/usr/local/bin/navsrv` and SPA assets at `/app/static`.
+   the binary at `/usr/local/bin/lens` and SPA assets at `/app/static`.
 
 Smoke-test the freshly built image:
 
@@ -132,11 +135,11 @@ host mapping and the container's listening port follow the same variable.
 ### docker run
 
 ```bash
-docker run -d --name nav \
+docker run -d --name lens \
   -e PORT=9090 -p 9090:9090 \
   -v ./data:/app/data \
   -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
-  navsrv:latest
+  lens:latest
 ```
 
 If you keep the default `PORT=8080` baked into the image, just publish
@@ -155,7 +158,7 @@ Back up the volume to back up the whole instance.
 
 ### Behind a reverse proxy (optional)
 
-For HTTPS or path prefixing, front `navsrv` with any reverse proxy (Caddy,
+For HTTPS or path prefixing, front `lens` with any reverse proxy (Caddy,
 nginx, Traefik, Cloudflare Tunnel, Tailscale Funnel...). When TLS is terminated
 upstream, set `SECURE_COOKIES=true` so session cookies are marked `Secure`.
 
@@ -173,7 +176,7 @@ upstream, set `SECURE_COOKIES=true` so session cookies are marked `Secure`.
 ## Resetting the admin password
 
 ```bash
-docker exec -it nav navsrv reset-password --password=<new>
+docker exec -it lens lens reset-password --password=<new>
 # or interactively (the binary prompts)
 ```
 

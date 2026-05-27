@@ -4,7 +4,7 @@
 
 **Goal:** Stand up the Rust backend (`server/` crate) end-to-end — from repo restructure through schema, repos, public read API, password-based auth, full CRUD, CLI password reset, and SPA fallback — so that `cargo run` produces a working API at `:8080` that the frontend (built later) can consume.
 
-**Architecture:** Single binary using Axum 0.7 + Tokio + SQLx (SQLite). 3NF schema migrated via `sqlx::migrate!`. Repository trait pattern (`NavRepo`, `ConfigRepo`) decouples handlers from SQL. Sessions stored in SQLite via `tower-sessions-sqlx-store`. Public read endpoint `/api/nav` returns the full bundle in one round-trip; writes are fine-grained behind a `RequireAuth` extractor. Static frontend bundle served by `tower_http::services::ServeDir` with SPA fallback. CLI subcommand for password reset (`navsrv reset-password`). Tests are integration-first using an in-memory SQLite per test.
+**Architecture:** Single binary using Axum 0.7 + Tokio + SQLx (SQLite). 3NF schema migrated via `sqlx::migrate!`. Repository trait pattern (`NavRepo`, `ConfigRepo`) decouples handlers from SQL. Sessions stored in SQLite via `tower-sessions-sqlx-store`. Public read endpoint `/api/nav` returns the full bundle in one round-trip; writes are fine-grained behind a `RequireAuth` extractor. Static frontend bundle served by `tower_http::services::ServeDir` with SPA fallback. CLI subcommand for password reset (`lens reset-password`). Tests are integration-first using an in-memory SQLite per test.
 
 **Tech Stack:** Rust 1.79 · Axum 0.7 · Tokio 1 · SQLx 0.7 (sqlite + chrono + migrate) · tower-sessions 0.10 + sqlx-store · tower-governor 0.3 · tower-http 0.5 (compression + ServeDir + headers) · bcrypt 0.15 · clap 4 (derive) · figment 0.10 + dotenvy · serde 1 / serde_json 1 · validator 0.16 · thiserror 1 · anyhow 1 · tracing + tracing-subscriber · reqwest 0.12 (favicon proxy) · multer 3 (multipart) · rand 0.8 · chrono 0.4
 
@@ -285,14 +285,14 @@ mkdir -p server/src server/tests server/migrations
 
 ```toml
 [package]
-name = "navsrv"
+name = "lens"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.79"
-default-run = "navsrv"
+default-run = "lens"
 
 [[bin]]
-name = "navsrv"
+name = "lens"
 path = "src/main.rs"
 
 [dependencies]
@@ -383,7 +383,7 @@ Expected: compiles without errors.
 
 ```bash
 git add server/Cargo.toml server/Cargo.lock server/.gitignore server/rust-toolchain.toml server/src/main.rs
-git commit -m "feat(server): scaffold navsrv crate with locked toolchain and deps"
+git commit -m "feat(server): scaffold lens crate with locked toolchain and deps"
 ```
 
 ### Task 6: `AppError` + `IntoResponse`
@@ -527,7 +527,7 @@ mod tests {
 Create `server/src/lib.rs`:
 
 ```rust
-//! navsrv internal library — exposed for integration tests.
+//! lens internal library — exposed for integration tests.
 pub mod error;
 ```
 
@@ -544,7 +544,7 @@ fn main() {}
 
 ```toml
 [lib]
-name = "navsrv"
+name = "lens"
 path = "src/lib.rs"
 ```
 
@@ -721,7 +721,7 @@ Create `server/tests/health.rs`:
 
 ```rust
 use axum_test::TestServer;
-use navsrv::app::build_app_for_tests;
+use lens::app::build_app_for_tests;
 
 #[tokio::test]
 async fn health_returns_ok_json() {
@@ -740,7 +740,7 @@ cd server
 cargo test --test health -- --nocapture
 ```
 
-Expected: error referencing missing `navsrv::app`.
+Expected: error referencing missing `lens::app`.
 
 - [ ] **Step 3: Write `routes/health.rs`**
 
@@ -822,7 +822,7 @@ pub mod routes;
 ```rust
 // server/src/main.rs
 use anyhow::Context;
-use navsrv::{app::build_app, config::Settings};
+use lens::{app::build_app, config::Settings};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
@@ -834,7 +834,7 @@ async fn main() -> anyhow::Result<()> {
     let app = build_app();
     let addr = SocketAddr::from(([0, 0, 0, 0], settings.port));
     let listener = TcpListener::bind(addr).await.context("bind")?;
-    tracing::info!(%addr, "navsrv listening");
+    tracing::info!(%addr, "lens listening");
     axum::serve(listener, app).await.context("serve")?;
     Ok(())
 }
@@ -1418,9 +1418,9 @@ git commit -m "feat(server): NavRepo trait and DTOs (read + write payloads)"
 
 ```rust
 // server/tests/repo_sites.rs
-use navsrv::db::connect_in_memory;
-use navsrv::dto::{SitePatch, SitePayload};
-use navsrv::repo::{NavRepo, SqlxNavRepo};
+use lens::db::connect_in_memory;
+use lens::dto::{SitePatch, SitePayload};
+use lens::repo::{NavRepo, SqlxNavRepo};
 
 #[tokio::test]
 async fn create_list_patch_delete_site() {
@@ -1462,7 +1462,7 @@ async fn unique_value_constraint_returns_conflict() {
     let err = repo.create_site(SitePayload {
         value: "x".into(), name: "Y".into(), name_i18n: None, is_default: false,
     }).await.unwrap_err();
-    use navsrv::error::AppError;
+    use lens::error::AppError;
     assert!(matches!(err, AppError::Conflict(_)), "got {err:?}");
 }
 ```
@@ -1694,7 +1694,7 @@ Expected: 2 PASS.
 ```bash
 cd server
 cargo install sqlx-cli --no-default-features --features sqlite --version ^0.7 || true
-DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin navsrv
+DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin lens
 ls -la .sqlx | head
 cd ..
 ```
@@ -1718,9 +1718,9 @@ git commit -m "feat(server): NavRepo sqlx impl for sites/groups/tags"
 
 ```rust
 // server/tests/repo_items.rs
-use navsrv::db::connect_in_memory;
-use navsrv::dto::*;
-use navsrv::repo::{NavRepo, SqlxNavRepo};
+use lens::db::connect_in_memory;
+use lens::dto::*;
+use lens::repo::{NavRepo, SqlxNavRepo};
 
 async fn make_repo_with_seed() -> (SqlxNavRepo, i64, i64) {
     let pool = connect_in_memory().await.unwrap();
@@ -1968,7 +1968,7 @@ impl SqlxNavRepo {
 
 ```bash
 cd server
-DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin navsrv --tests
+DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin lens --tests
 cargo test --test repo_items
 cd ..
 ```
@@ -1993,8 +1993,8 @@ git commit -m "feat(server): NavRepo sqlx impl for items + links + tags"
 
 ```rust
 // server/tests/repo_config.rs
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo};
 
 #[tokio::test]
 async fn upsert_get_delete_config() {
@@ -2107,7 +2107,7 @@ pub use sqlx_impl::SqlxNavRepo;
 
 ```bash
 cd server
-DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin navsrv --tests
+DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin lens --tests
 cargo test --test repo_config
 cd ..
 ```
@@ -2226,7 +2226,7 @@ pub fn api(state: AppState) -> Router {
 ```rust
 // server/src/main.rs
 use anyhow::Context;
-use navsrv::{
+use lens::{
     app::build_app,
     config::Settings,
     db::{connect, migrate},
@@ -2252,7 +2252,7 @@ async fn main() -> anyhow::Result<()> {
     let app = build_app(state);
     let addr = SocketAddr::from(([0, 0, 0, 0], settings.port));
     let listener = TcpListener::bind(addr).await.context("bind")?;
-    tracing::info!(%addr, "navsrv listening");
+    tracing::info!(%addr, "lens listening");
     axum::serve(listener, app).await.context("serve")?;
     Ok(())
 }
@@ -2408,7 +2408,7 @@ git commit -m "feat(server): assemble_bundle service composing nav + config"
 ```rust
 // server/tests/api_nav.rs
 use axum_test::TestServer;
-use navsrv::app::build_app_for_tests;
+use lens::app::build_app_for_tests;
 
 #[tokio::test]
 async fn nav_endpoint_returns_empty_bundle_initially() {
@@ -2499,7 +2499,7 @@ git commit -m "feat(server): GET /api/nav returns full NavBundle (camelCase)"
 
 ## Phase 4: Authentication and Bootstrap (Tasks 19–28)
 
-Goal: single-admin password auth backed by bcrypt + signed session cookies stored in SQLite. First boot generates a password if env doesn't supply one and writes it to `INITIAL_PASSWORD.txt`. CLI subcommand `navsrv reset-password` for recovery.
+Goal: single-admin password auth backed by bcrypt + signed session cookies stored in SQLite. First boot generates a password if env doesn't supply one and writes it to `INITIAL_PASSWORD.txt`. CLI subcommand `lens reset-password` for recovery.
 
 ### Task 19: Password hashing utility
 
@@ -2600,9 +2600,9 @@ git commit -m "feat(server): bcrypt password hash/verify utility"
 
 ```rust
 // server/tests/bootstrap.rs
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo};
-use navsrv::services::bootstrap::{ensure_admin_password, BootstrapOutcome};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo};
+use lens::services::bootstrap::{ensure_admin_password, BootstrapOutcome};
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -2875,7 +2875,7 @@ pub async fn build_app_for_tests() -> anyhow::Result<Router> {
 ```rust
 // server/src/main.rs (extend after `migrate(...)`)
 use anyhow::Context;
-use navsrv::{
+use lens::{
     app::build_app,
     auth::session::{layer as session_layer, run_pruner},
     config::Settings,
@@ -2907,7 +2907,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], settings.port));
     let listener = TcpListener::bind(addr).await.context("bind")?;
-    tracing::info!(%addr, "navsrv listening");
+    tracing::info!(%addr, "lens listening");
     axum::serve(listener, app).await.context("serve")?;
     Ok(())
 }
@@ -2923,7 +2923,7 @@ fn init_tracing(filter: &str) {
 
 ```bash
 cd server
-DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin navsrv --tests
+DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin lens --tests
 cargo test
 cd ..
 ```
@@ -2949,16 +2949,16 @@ git commit -m "feat(server): tower-sessions wired with SQLite store + 30d slidin
 ```rust
 // server/tests/api_auth.rs
 use axum_test::TestServer;
-use navsrv::app::build_app_for_tests;
-use navsrv::auth::password;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo};
-use navsrv::db::connect_in_memory;
+use lens::app::build_app_for_tests;
+use lens::auth::password;
+use lens::repo::{ConfigRepo, SqlxConfigRepo};
+use lens::db::connect_in_memory;
 
 async fn server_with_password(pw: &str) -> (TestServer, std::sync::Arc<dyn ConfigRepo>) {
-    use navsrv::app::build_app;
-    use navsrv::auth::session::layer as session_layer;
-    use navsrv::repo::SqlxNavRepo;
-    use navsrv::state::AppState;
+    use lens::app::build_app;
+    use lens::auth::session::layer as session_layer;
+    use lens::repo::SqlxNavRepo;
+    use lens::state::AppState;
     use std::sync::Arc;
     let pool = connect_in_memory().await.unwrap();
     let nav = Arc::new(SqlxNavRepo::new(pool.clone()));
@@ -3084,7 +3084,7 @@ pub fn api(state: AppState) -> Router {
 
 ```bash
 cd server
-DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin navsrv --tests
+DATABASE_URL=sqlite:./dev-data/data.db cargo sqlx prepare -- --bin lens --tests
 cargo test --test api_auth
 cd ..
 ```
@@ -3258,11 +3258,11 @@ In `server/src/app.rs::build_app_for_tests`, set `data_dir = std::env::temp_dir(
 ```rust
 // server/tests/api_config_password.rs
 use axum_test::TestServer;
-use navsrv::app::build_app;
-use navsrv::auth::{password, session::layer as session_layer};
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
-use navsrv::state::AppState;
+use lens::app::build_app;
+use lens::auth::{password, session::layer as session_layer};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
+use lens::state::AppState;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -3412,7 +3412,7 @@ git add server/src/routes server/src/state.rs server/src/main.rs server/src/app.
 git commit -m "feat(server): change-password endpoint deletes INITIAL_PASSWORD.txt on success"
 ```
 
-### Task 26: CLI `navsrv reset-password` (clap-derive)
+### Task 26: CLI `lens reset-password` (clap-derive)
 
 **Files:**
 - Create: `server/src/cli.rs`
@@ -3433,7 +3433,7 @@ use crate::db::{connect, migrate};
 use crate::repo::{ConfigRepo, SqlxConfigRepo};
 
 #[derive(Parser, Debug)]
-#[command(name = "navsrv", version)]
+#[command(name = "lens", version)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -3513,7 +3513,7 @@ pub mod state;
 // server/src/main.rs (replace)
 use anyhow::Context;
 use clap::Parser;
-use navsrv::{
+use lens::{
     app::build_app,
     auth::session::{layer as session_layer, run_pruner},
     cli::{Cli, Command, run_command},
@@ -3551,7 +3551,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], settings.port));
     let listener = TcpListener::bind(addr).await.context("bind")?;
-    tracing::info!(%addr, "navsrv listening");
+    tracing::info!(%addr, "lens listening");
     axum::serve(listener, app).await.context("serve")?;
     Ok(())
 }
@@ -3567,9 +3567,9 @@ fn init_tracing(filter: &str) {
 
 ```rust
 // server/tests/cli.rs
-use navsrv::auth::password;
-use navsrv::cli::{run_command, Command};
-use navsrv::config::Settings;
+use lens::auth::password;
+use lens::cli::{run_command, Command};
+use lens::config::Settings;
 
 #[tokio::test]
 async fn reset_password_flow() {
@@ -3583,7 +3583,7 @@ async fn reset_password_flow() {
     run_command(Command::ResetPassword { password: Some("brand-new-pw".into()) }).await.unwrap();
 
     let s = Settings::load().unwrap();
-    let pool = navsrv::db::connect(&s.db_url()).await.unwrap();
+    let pool = lens::db::connect(&s.db_url()).await.unwrap();
     let h: (String,) = sqlx::query_as("SELECT value FROM config WHERE key='admin_password_hash'")
         .fetch_one(&pool).await.unwrap();
     assert!(password::verify("brand-new-pw", &h.0).unwrap());
@@ -3631,12 +3631,12 @@ Goal: write endpoints for items / groups / sites / tags / icons / favicon, all g
 ```rust
 // server/tests/api_items.rs
 use axum_test::TestServer;
-use navsrv::app::build_app;
-use navsrv::auth::{password, session::layer as session_layer};
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo, NavRepo};
-use navsrv::state::AppState;
-use navsrv::dto::{GroupPayload, SitePayload};
+use lens::app::build_app;
+use lens::auth::{password, session::layer as session_layer};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo, NavRepo};
+use lens::state::AppState;
+use lens::dto::{GroupPayload, SitePayload};
 use std::sync::Arc;
 
 async fn auth_server() -> (TestServer, i64) {
@@ -3935,11 +3935,11 @@ pub fn api(state: AppState) -> Router {
 ```rust
 // server/tests/api_groups_sites_tags.rs
 use axum_test::TestServer;
-use navsrv::app::build_app;
-use navsrv::auth::{password, session::layer as session_layer};
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
-use navsrv::state::AppState;
+use lens::app::build_app;
+use lens::auth::{password, session::layer as session_layer};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
+use lens::state::AppState;
 use std::sync::Arc;
 
 async fn boot() -> TestServer {
@@ -4082,11 +4082,11 @@ async fn upload(
 ```rust
 // server/tests/api_icons.rs
 use axum_test::TestServer;
-use navsrv::app::build_app;
-use navsrv::auth::{password, session::layer as session_layer};
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
-use navsrv::state::AppState;
+use lens::app::build_app;
+use lens::auth::{password, session::layer as session_layer};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
+use lens::state::AppState;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -4161,7 +4161,7 @@ impl FaviconService {
         std::fs::create_dir_all(&cache_dir).ok();
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
-            .user_agent("navsrv-favicon/0.1")
+            .user_agent("lens-favicon/0.1")
             .build().expect("http client");
         Self { cache_dir, http }
     }
@@ -4401,11 +4401,11 @@ Add `server/tests/spa_fallback.rs`:
 
 ```rust
 use axum_test::TestServer;
-use navsrv::app::build_app;
-use navsrv::auth::session::layer as session_layer;
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{SqlxConfigRepo, SqlxNavRepo};
-use navsrv::state::AppState;
+use lens::app::build_app;
+use lens::auth::session::layer as session_layer;
+use lens::db::connect_in_memory;
+use lens::repo::{SqlxConfigRepo, SqlxNavRepo};
+use lens::state::AppState;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -4616,16 +4616,16 @@ pub mod migration;
 
 ```rust
 // server/src/main.rs (in main fn, after ensure_admin_password call)
-navsrv::services::migration::seed_if_empty(nav.clone() as _, cfg.clone() as _).await?;
+lens::services::migration::seed_if_empty(nav.clone() as _, cfg.clone() as _).await?;
 ```
 
 - [ ] **Step 5: Test**
 
 ```rust
 // server/tests/seed.rs
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, NavRepo, SqlxConfigRepo, SqlxNavRepo};
-use navsrv::services::migration::seed_if_empty;
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, NavRepo, SqlxConfigRepo, SqlxNavRepo};
+use lens::services::migration::seed_if_empty;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -4679,7 +4679,7 @@ git commit -m "feat(server): seed_if_empty migrates bootstrap.json into SQLite"
 - [ ] **Step 1: `server/README.md`**
 
 ````markdown
-# navsrv
+# lens
 
 Rust backend for the navigation site (Plan 1 of 5). Serves the SPA + JSON API at `:8080`.
 
@@ -4717,7 +4717,7 @@ pnpm dev
 ## CLI
 
 ```
-navsrv reset-password [--password <new>]   # invalidates all sessions; deletes INITIAL_PASSWORD.txt
+lens reset-password [--password <new>]   # invalidates all sessions; deletes INITIAL_PASSWORD.txt
 ```
 
 ## Tests
