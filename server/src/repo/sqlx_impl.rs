@@ -512,7 +512,7 @@ impl NavRepo for SqlxNavRepo {
             let final_order: Vec<i64> = listed
                 .iter()
                 .map(|e| e.id)
-                .chain(others.into_iter())
+                .chain(others)
                 .collect();
 
             for (idx, id) in final_order.iter().enumerate() {
