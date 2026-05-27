@@ -149,18 +149,25 @@
   }
   /* The wrapper is the fixed-position container so the entry animation
    * lives on it; .expand inside is the actual card. .title sits above
-   * .expand as a floating label, matching macOS Launchpad. */
+   * .expand as a floating label, matching macOS Launchpad.
+   *
+   * Anchored at a fixed top offset (not vertically centered): with few
+   * children the panel previously floated awkwardly at viewport mid-
+   * height, leaving a large empty band above the title. A fixed top
+   * keeps the title at a stable position regardless of how many cards
+   * the folder holds, and the .expand max-height clamp lets long
+   * folders scroll inside the panel. */
   .wrap {
     position: fixed;
-    top: 50%;
+    top: 120px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 81;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--sp-5);
-    max-height: calc(100vh - 96px);
+    max-height: calc(100vh - 120px - var(--sp-7));
     width: min(90vw, 720px);
     animation: wrap-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
@@ -233,11 +240,11 @@
   @keyframes wrap-in {
     from {
       opacity: 0;
-      transform: translate(-50%, calc(-50% + 8px)) scale(0.96);
+      transform: translateX(-50%) translateY(-8px) scale(0.96);
     }
     to {
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
+      transform: translateX(-50%) scale(1);
     }
   }
   .grid {
