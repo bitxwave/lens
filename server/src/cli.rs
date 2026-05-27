@@ -8,7 +8,7 @@ use crate::db::{connect, migrate};
 use crate::repo::{ConfigRepo, SqlxConfigRepo};
 
 #[derive(Parser, Debug)]
-#[command(name = "navsrv", version)]
+#[command(name = "lens", version)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,

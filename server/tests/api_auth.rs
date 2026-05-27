@@ -1,14 +1,14 @@
 use axum_test::TestServer;
-use navsrv::app::build_app_for_tests;
-use navsrv::auth::password;
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo};
+use lens::app::build_app_for_tests;
+use lens::auth::password;
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo};
 
 async fn server_with_password(pw: &str) -> (TestServer, std::sync::Arc<dyn ConfigRepo>) {
-    use navsrv::app::build_app;
-    use navsrv::auth::session::layer as session_layer;
-    use navsrv::repo::SqlxNavRepo;
-    use navsrv::state::AppState;
+    use lens::app::build_app;
+    use lens::auth::session::layer as session_layer;
+    use lens::repo::SqlxNavRepo;
+    use lens::state::AppState;
     use std::sync::Arc;
     let pool = connect_in_memory().await.unwrap();
     let nav = Arc::new(SqlxNavRepo::new(pool.clone()));

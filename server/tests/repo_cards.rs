@@ -1,9 +1,9 @@
-use navsrv::db::connect_in_memory;
-use navsrv::dto::{
+use lens::db::connect_in_memory;
+use lens::dto::{
     AutoFolderPayload, CardKind, CardPatch, CardPayload, IconKind, ReorderEntry, SitePayload,
 };
-use navsrv::error::AppError;
-use navsrv::repo::{NavRepo, SqlxNavRepo};
+use lens::error::AppError;
+use lens::repo::{NavRepo, SqlxNavRepo};
 
 async fn make_repo() -> (SqlxNavRepo, i64) {
     let pool = connect_in_memory().await.unwrap();

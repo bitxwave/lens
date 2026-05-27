@@ -1,16 +1,16 @@
 [package]
-name = "navsrv"
+name = "lens"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.79"
-default-run = "navsrv"
+default-run = "lens"
 
 [[bin]]
-name = "navsrv"
+name = "lens"
 path = "src/main.rs"
 
 [lib]
-name = "navsrv"
+name = "lens"
 path = "src/lib.rs"
 
 [dependencies]

@@ -16,7 +16,7 @@ impl FaviconService {
         std::fs::create_dir_all(&cache_dir).ok();
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
-            .user_agent("navsrv-favicon/0.1")
+            .user_agent("lens-favicon/0.1")
             .build()
             .expect("http client");
         Self { cache_dir, http }

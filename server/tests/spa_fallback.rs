@@ -1,9 +1,9 @@
 use axum_test::TestServer;
-use navsrv::app::build_app;
-use navsrv::auth::session::layer as session_layer;
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{SqlxConfigRepo, SqlxNavRepo};
-use navsrv::state::AppState;
+use lens::app::build_app;
+use lens::auth::session::layer as session_layer;
+use lens::db::connect_in_memory;
+use lens::repo::{SqlxConfigRepo, SqlxNavRepo};
+use lens::state::AppState;
 use std::sync::Arc;
 use tempfile::TempDir;
 

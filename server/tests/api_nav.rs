@@ -1,5 +1,5 @@
 use axum_test::TestServer;
-use navsrv::app::build_app_for_tests;
+use lens::app::build_app_for_tests;
 
 #[tokio::test]
 async fn nav_endpoint_returns_empty_bundle_initially() {

@@ -1,5 +1,5 @@
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo};
 
 #[tokio::test]
 async fn upsert_get_delete_config() {

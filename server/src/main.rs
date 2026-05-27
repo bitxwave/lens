@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use navsrv::{
+use lens::{
     app::build_app,
     auth::session::{layer as session_layer, run_pruner},
     cli::{run_command, Cli},
@@ -26,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
 
     let pool = connect(&settings.db_url()).await.context("db connect")?;
     migrate(&pool).await.context("migrate")?;
-    navsrv::services::legacy_migrate::migrate_if_needed(&pool)
+    lens::services::legacy_migrate::migrate_if_needed(&pool)
         .await
         .context("legacy_migrate")?;
 
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    navsrv::services::migration::seed_if_empty(nav.clone() as _, cfg.clone() as _).await?;
+    lens::services::migration::seed_if_empty(nav.clone() as _, cfg.clone() as _).await?;
 
     let state = AppState::new(nav, cfg, settings.data_dir.clone());
     let app = build_app(
@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], settings.port));
     let listener = TcpListener::bind(addr).await.context("bind")?;
-    tracing::info!(%addr, "navsrv listening");
+    tracing::info!(%addr, "lens listening");
     axum::serve(listener, app).await.context("serve")?;
     Ok(())
 }

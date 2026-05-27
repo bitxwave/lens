@@ -1,5 +1,5 @@
 use axum_test::TestServer;
-use navsrv::app::build_app_for_tests;
+use lens::app::build_app_for_tests;
 
 #[tokio::test]
 async fn health_returns_ok_json() {

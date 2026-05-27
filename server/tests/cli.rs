@@ -1,6 +1,6 @@
-use navsrv::auth::password;
-use navsrv::cli::{run_command, Command};
-use navsrv::config::Settings;
+use lens::auth::password;
+use lens::cli::{run_command, Command};
+use lens::config::Settings;
 
 #[tokio::test]
 async fn reset_password_flow() {
@@ -18,7 +18,7 @@ async fn reset_password_flow() {
     .unwrap();
 
     let s = Settings::load().unwrap();
-    let pool = navsrv::db::connect(&s.db_url()).await.unwrap();
+    let pool = lens::db::connect(&s.db_url()).await.unwrap();
     let h: (String,) = sqlx::query_as("SELECT value FROM config WHERE key='admin_password_hash'")
         .fetch_one(&pool)
         .await

@@ -1,7 +1,7 @@
-use navsrv::db::connect_in_memory;
-use navsrv::dto::{CardKind, CardPayload, IconKind, SitePatch, SitePayload};
-use navsrv::error::AppError;
-use navsrv::repo::{NavRepo, SqlxNavRepo};
+use lens::db::connect_in_memory;
+use lens::dto::{CardKind, CardPayload, IconKind, SitePatch, SitePayload};
+use lens::error::AppError;
+use lens::repo::{NavRepo, SqlxNavRepo};
 
 #[tokio::test]
 async fn create_list_patch_delete_site() {

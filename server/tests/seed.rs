@@ -1,7 +1,7 @@
-use navsrv::db::connect_in_memory;
-use navsrv::dto::CardKind;
-use navsrv::repo::{ConfigRepo, NavRepo, SqlxConfigRepo, SqlxNavRepo};
-use navsrv::services::migration::seed_if_empty;
+use lens::db::connect_in_memory;
+use lens::dto::CardKind;
+use lens::repo::{ConfigRepo, NavRepo, SqlxConfigRepo, SqlxNavRepo};
+use lens::services::migration::seed_if_empty;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -27,7 +27,7 @@ async fn seed_populates_sites_and_folders() {
     assert!(!items.is_empty(), "expected items seeded from bootstrap");
     assert_eq!(
         cfg.get("site_name").await.unwrap().as_deref(),
-        Some("Pico 的小站导航")
+        Some("Lens")
     );
 }
 

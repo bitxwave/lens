@@ -1,6 +1,6 @@
-use navsrv::db::connect_in_memory;
-use navsrv::repo::{ConfigRepo, SqlxConfigRepo};
-use navsrv::services::bootstrap::{ensure_admin_password, BootstrapOutcome};
+use lens::db::connect_in_memory;
+use lens::repo::{ConfigRepo, SqlxConfigRepo};
+use lens::services::bootstrap::{ensure_admin_password, BootstrapOutcome};
 use std::sync::Arc;
 use tempfile::TempDir;
 
