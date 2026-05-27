@@ -637,7 +637,7 @@ CMD ["lens"]
 > 仓库采用 **web/ + server/ 双子项目**：前端、后端各自自包含，根目录只放跨子项目资源（Dockerfile / docker-compose / docs / scripts / e2e tests / README）。**不**引入 pnpm/cargo workspace（YAGNI）。
 
 ```
-navigation_website/
+lens/
 ├─ web/                                # SvelteKit 子项目（自包含）
 │  ├─ package.json
 │  ├─ pnpm-lock.yaml

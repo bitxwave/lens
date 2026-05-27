@@ -581,7 +581,7 @@ and worth testing. New file `dragGrid.test.ts` with cases:
 
 Single PR. No feature flag, no incremental migration. The change is a
 pure UX refinement; if reverted, behavior returns to current. Worktree
-already isolated (`navigation_website/.worktrees/rust-backend`).
+already isolated (`lens/.worktrees/rust-backend`).
 
 PR title: `feat(launchpad): macos-style drag with dwell-gated merge and shift-to-make-room`
 

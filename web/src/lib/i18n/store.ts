@@ -7,7 +7,7 @@ export type Locale = 'zh' | 'en';
 
 const DICTIONARIES: Record<Locale, Record<string, string>> = { zh, en };
 
-const LS_KEY = 'navsite.locale';
+const LS_KEY = 'lens.locale';
 
 function detectInitial(): Locale {
   if (!browser) return 'zh';

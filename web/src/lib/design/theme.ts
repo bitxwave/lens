@@ -3,7 +3,7 @@ import { browser } from '$app/environment';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-const LS_KEY = 'navsite.theme';
+const LS_KEY = 'lens.theme';
 
 function detectStored(): ThemeMode {
   if (!browser) return 'system';

@@ -7,8 +7,8 @@ export interface UiPrefs {
   siteValue: string | null;
 }
 
-const LS_KEY = 'navsite.uiPrefs';
-const SCHEMA_KEY = 'navsite.uiPrefs.v';
+const LS_KEY = 'lens.uiPrefs';
+const SCHEMA_KEY = 'lens.uiPrefs.v';
 // Bumped to 2 when we dropped favorites and group-open state — old
 // payloads are silently discarded on first load.
 const SCHEMA_VERSION = '2';
