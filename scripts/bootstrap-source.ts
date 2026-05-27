@@ -43,9 +43,9 @@ export interface BootstrapDoc {
 export const BOOTSTRAP: BootstrapDoc = {
   schemaVersion: 1,
   meta: {
-    siteName: 'Pico 的小站导航',
+    siteName: 'Lens',
     siteAvatarPath: '/avatar.png',
-    siteCopyright: 'Copyright © 2026 Pico. All rights reserved.',
+    siteCopyright: '',
     siteIcp: null,
     sitePolice: null,
     defaultTheme: 'system'

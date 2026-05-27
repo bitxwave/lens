@@ -63,7 +63,7 @@
 
   "admin.site.legend.branding": "Branding",
   "admin.site.field.title": "Site title",
-  "admin.site.field.title.placeholder": "Pico Nav",
+  "admin.site.field.title.placeholder": "Lens",
   "admin.site.field.avatar": "Site avatar",
   "admin.site.field.avatar.help": "Shown next to the site title in the header. Leave blank to hide.",
   "admin.site.field.copyright": "Footer copyright",

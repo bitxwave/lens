@@ -63,7 +63,7 @@
 
   "admin.site.legend.branding": "品牌",
   "admin.site.field.title": "站点标题",
-  "admin.site.field.title.placeholder": "Pico 导航",
+  "admin.site.field.title.placeholder": "Lens",
   "admin.site.field.avatar": "站点头像",
   "admin.site.field.avatar.help": "显示在头部的站点标题旁。留空则隐藏。",
   "admin.site.field.copyright": "页脚版权",
