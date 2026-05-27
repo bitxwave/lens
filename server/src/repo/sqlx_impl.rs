@@ -509,11 +509,7 @@ impl NavRepo for SqlxNavRepo {
             // Final order: listed (in requested order) followed by others.
             // Stage every row to a fresh negative slot first, then write
             // the contiguous 0..N values, so we never collide.
-            let final_order: Vec<i64> = listed
-                .iter()
-                .map(|e| e.id)
-                .chain(others)
-                .collect();
+            let final_order: Vec<i64> = listed.iter().map(|e| e.id).chain(others).collect();
 
             for (idx, id) in final_order.iter().enumerate() {
                 let staging = -1_i64 - idx as i64;
