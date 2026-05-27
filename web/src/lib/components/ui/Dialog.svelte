@@ -27,9 +27,13 @@
     onClose?.();
   }
 
-  function onBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) close();
-  }
+  /** Backdrop click intentionally does NOT close the dialog — explicit
+   *  user actions only (Escape key, footer Cancel button, or whatever
+   *  control the consumer renders). This keeps mid-edit forms safe
+   *  from a stray click on the dimmed area dismissing unsaved input,
+   *  and from the synthetic-click-on-common-ancestor bug where
+   *  drag-selecting text in an input and releasing outside the dialog
+   *  would synthesize a click on .backdrop. */
 
   function onKey(e: KeyboardEvent) {
     if (!open) return;
@@ -59,13 +63,7 @@
 <svelte:window onkeydown={onKey} />
 
 {#if open}
-  <div
-    class="backdrop"
-    role="presentation"
-    onclick={onBackdropClick}
-    onkeydown={() => {}}
-    aria-hidden="false"
-  >
+  <div class="backdrop" role="presentation" aria-hidden="false">
     <div
       bind:this={dialogEl}
       class="dialog width-{width}"
@@ -180,21 +178,33 @@
 
   /* Give ghost buttons (typically the Cancel) a visible border + soft fill so
    * they don't disappear into the footer's glass background. Scoped to the
-   * dialog footer so other usages of ghost buttons stay flat. */
-  .footer :global(.btn.intent-ghost) {
+   * dialog footer so other usages of ghost buttons stay flat.
+   *
+   * The `.backdrop .footer` prefix raises specificity to (0,5,0) so
+   * this beats `Header.svelte`'s `.header :global(.btn.intent-ghost) {
+   * color: var(--c-card-label) }` (specificity 0,4,0). Without that
+   * extra qualifier, dialogs that happen to be DOM-descendants of the
+   * public Header — e.g. LoginDialog rendered inside AuthControls —
+   * inherit the header's white-text-over-gradient rule and the Cancel
+   * button text becomes invisible against the dialog's glass surface. */
+  .backdrop .footer :global(.btn.intent-ghost) {
     background: rgba(0, 0, 0, 0.04);
     border-color: rgba(0, 0, 0, 0.14);
+    color: var(--c-text);
 
     &:hover:not(:disabled) {
       background: rgba(0, 0, 0, 0.08);
+      color: var(--c-text);
     }
   }
-  :global([data-theme='dark']) .footer :global(.btn.intent-ghost) {
+  :global([data-theme='dark']) .backdrop .footer :global(.btn.intent-ghost) {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.18);
+    color: var(--c-text);
 
     &:hover:not(:disabled) {
       background: rgba(255, 255, 255, 0.12);
+      color: var(--c-text);
     }
   }
 </style>
