@@ -2,13 +2,11 @@
   import Button from '$lib/components/ui/Button.svelte';
   import IconButton from '$lib/components/ui/IconButton.svelte';
   import LoginDialog from '$lib/components/Editor/LoginDialog.svelte';
-  import ChangePasswordDialog from '$lib/components/Editor/ChangePasswordDialog.svelte';
   import { goto } from '$app/navigation';
   import { sessionStore } from '$lib/stores/session';
   import { t } from '$lib/i18n/store';
 
   let loginOpen = $state(false);
-  let pwOpen = $state(false);
 
   async function onLogout() {
     await sessionStore.logout();
@@ -34,28 +32,9 @@
       />
     </svg>
   </IconButton>
-  <IconButton label="Change password" onclick={() => (pwOpen = true)}>
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="8" cy="15" r="4" />
-      <path d="M10.85 12.15 21 2" />
-      <path d="m18 5 3 3" />
-      <path d="m15 8 3 3" />
-    </svg>
-  </IconButton>
   <Button intent="ghost" size="sm" onclick={onLogout}>{$t('header.logout')}</Button>
 {:else}
   <Button intent="ghost" size="sm" onclick={() => (loginOpen = true)}>{$t('header.login')}</Button>
 {/if}
 
 <LoginDialog bind:open={loginOpen} />
-<ChangePasswordDialog bind:open={pwOpen} />

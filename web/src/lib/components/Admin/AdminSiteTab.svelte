@@ -87,18 +87,26 @@
 
 <div class="form">
   <fieldset>
-    <legend>Branding</legend>
-    <Input label="Site title" bind:value={siteName} placeholder="Pico Nav" />
+    <legend>{$t('admin.site.legend.branding')}</legend>
+    <Input
+      label={$t('admin.site.field.title')}
+      bind:value={siteName}
+      placeholder={$t('admin.site.field.title.placeholder')}
+    />
     <div class="grp">
-      <span class="lbl">Site avatar</span>
+      <span class="lbl">{$t('admin.site.field.avatar')}</span>
       <IconSourcePicker
         bind:kind={avatarKind}
         bind:value={avatarValue}
         allowedKinds={['asset', 'url']}
       />
-      <small class="help">Shown next to the site title in the header. Leave blank to hide.</small>
+      <small class="help">{$t('admin.site.field.avatar.help')}</small>
     </div>
-    <Input label="Footer copyright" bind:value={siteCopyright} placeholder="© 2026 Your Name" />
+    <Input
+      label={$t('admin.site.field.copyright')}
+      bind:value={siteCopyright}
+      placeholder={$t('admin.site.field.copyright.placeholder')}
+    />
   </fieldset>
 
   {#if error}<p class="err">{error}</p>{/if}

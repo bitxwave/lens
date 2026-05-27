@@ -34,6 +34,15 @@ body {
   color: var(--c-text);
 }
 
+/* Admin routes opt out of the Launchpad gradient — they render a
+ * dashboard chrome (topbar + sidebar + content cards) on a neutral
+ * surface. The +layout.svelte toggles `body.admin-route` based on
+ * pathname; this rule overrides the gradient so admin views stop
+ * leaking the consumer-facing aesthetic into the management UI. */
+body.admin-route #root {
+  background: var(--c-bg);
+}
+
 /* Scrollbar — token-driven, theme-aware */
 ::-webkit-scrollbar {
   width: 8px;

@@ -26,17 +26,29 @@
   });
 
   let editingId = $state<number | null>(null);
-  let editValue = $state('');
   let editName = $state('');
   let editDefault = $state(false);
 
   let creating = $state(false);
-  let newValue = $state('');
   let newName = $state('');
   let newDefault = $state(false);
   let busy = $state(false);
 
   const dragDisabled = $derived(editingId !== null || creating || busy);
+
+  /** Sites carry a stable string `value` used as the per-card link key
+   *  (e.g. card.links['s_a3f9k2'] = 'https://…'). The user picks sites
+   *  by display name, so the value is purely an internal identifier;
+   *  exposing it as an input lets users break referential integrity by
+   *  editing a value that's already referenced. We generate it on
+   *  create and never expose it again. base36 of (Date.now + Math.random)
+   *  collides only under simultaneous-millisecond + same-random submits,
+   *  which the API's UNIQUE constraint would catch anyway. */
+  function generateSiteValue(): string {
+    const ts = Date.now().toString(36);
+    const rand = Math.random().toString(36).slice(2, 6);
+    return `s_${ts}${rand}`;
+  }
 
   function onConsider(e: CustomEvent<DndEvent<Site>>) {
     working = e.detail.items;
@@ -49,13 +61,12 @@
       await navDataStore.refetch();
     } catch (err) {
       await navDataStore.refetch();
-      toast.error(err instanceof ApiError ? err.message : 'Reorder failed');
+      toast.error(err instanceof ApiError ? err.message : $t('admin.sites.toast.reorderFailed'));
     }
   }
 
   function startEdit(s: Site) {
     editingId = s.id;
-    editValue = s.value;
     editName = s.name;
     editDefault = s.isDefault;
   }
@@ -64,10 +75,16 @@
   }
   async function saveEdit() {
     if (editingId == null || busy) return;
+    if (!editName.trim()) {
+      toast.error($t('admin.sites.toast.requireName'));
+      return;
+    }
     busy = true;
     try {
+      // value is intentionally omitted — it's an immutable identifier;
+      // editing it would break card.links references that point at the
+      // existing value. Only name + isDefault are user-mutable.
       await patchSite(editingId, {
-        value: editValue.trim(),
         name: editName.trim(),
         isDefault: editDefault
       });
@@ -75,7 +92,7 @@
       editingId = null;
       toast.success($t('common.save') + ' ✓');
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Save failed');
+      toast.error(e instanceof ApiError ? e.message : $t('admin.sites.toast.saveFailed'));
     } finally {
       busy = false;
     }
@@ -85,17 +102,19 @@
     if (busy) return;
     const count = linkCountBySite.get(s.value) ?? 0;
     if (count > 0) {
-      toast.error(`Site "${s.name}" is referenced by ${count} item link(s). Remove those first.`);
+      toast.error(
+        $t('admin.sites.toast.referencedBy', { name: s.name, count })
+      );
       return;
     }
-    if (!confirm(`Delete site "${s.name}"?`)) return;
+    if (!confirm($t('admin.sites.confirmDelete', { name: s.name }))) return;
     busy = true;
     try {
       await deleteSite(s.id);
       await navDataStore.refetch();
-      toast.success('Deleted ✓');
+      toast.success($t('admin.sites.toast.deleted'));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Delete failed');
+      toast.error(e instanceof ApiError ? e.message : $t('admin.sites.toast.deleteFailed'));
     } finally {
       busy = false;
     }
@@ -103,7 +122,6 @@
 
   function startCreate() {
     creating = true;
-    newValue = '';
     newName = '';
     newDefault = false;
   }
@@ -112,22 +130,22 @@
   }
   async function commitCreate() {
     if (busy) return;
-    if (!newValue.trim() || !newName.trim()) {
-      toast.error('Both value and name are required');
+    if (!newName.trim()) {
+      toast.error($t('admin.sites.toast.requireName'));
       return;
     }
     busy = true;
     try {
       await createSite({
-        value: newValue.trim(),
+        value: generateSiteValue(),
         name: newName.trim(),
         isDefault: newDefault
       });
       await navDataStore.refetch();
       creating = false;
-      toast.success('Created ✓');
+      toast.success($t('admin.sites.toast.created'));
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Create failed');
+      toast.error(e instanceof ApiError ? e.message : $t('admin.sites.toast.createFailed'));
     } finally {
       busy = false;
     }
@@ -136,27 +154,33 @@
 
 <div class="tab">
   <header class="head">
-    <h3>Sites <small>({sites.length})</small></h3>
+    <h3>{$t('admin.sites.head.title')} <small>({sites.length})</small></h3>
     {#if !creating}
-      <Button intent="primary" size="sm" onclick={startCreate}>＋ New site</Button>
+      <Button intent="primary" size="sm" onclick={startCreate}
+        >{$t('admin.sites.action.new')}</Button
+      >
     {/if}
   </header>
-  <p class="hint">
-    A "site" is a per-item link target (e.g. <code>shanghai</code>, <code>beijing</code>). Each nav
-    item can have one URL per site.
-  </p>
+  <p class="hint">{$t('admin.sites.hint')}</p>
 
   {#if creating}
     <div class="row create-row">
-      <Input label="Value (key)" bind:value={newValue} placeholder="shanghai" />
-      <Input label="Display name" bind:value={newName} placeholder="上海" />
+      <Input
+        label={$t('admin.sites.field.name')}
+        bind:value={newName}
+        placeholder={$t('admin.sites.field.name.placeholder')}
+      />
       <label class="def">
         <input type="checkbox" bind:checked={newDefault} />
-        Default
+        {$t('admin.sites.field.default')}
       </label>
       <div class="row-actions">
-        <Button intent="primary" size="sm" onclick={commitCreate} loading={busy}>Create</Button>
-        <Button intent="ghost" size="sm" onclick={cancelCreate}>Cancel</Button>
+        <Button intent="primary" size="sm" onclick={commitCreate} loading={busy}
+          >{$t('admin.sites.action.create')}</Button
+        >
+        <Button intent="ghost" size="sm" onclick={cancelCreate}
+          >{$t('admin.sites.action.cancel')}</Button
+        >
       </div>
     </div>
   {/if}
@@ -170,34 +194,42 @@
     {#each working as s (s.id)}
       <li class="row" class:editing={editingId === s.id}>
         {#if editingId === s.id}
-          <Input label="Value" bind:value={editValue} />
-          <Input label="Name" bind:value={editName} />
+          <Input label={$t('admin.sites.field.name')} bind:value={editName} />
           <label class="def">
             <input type="checkbox" bind:checked={editDefault} />
-            Default
+            {$t('admin.sites.field.default')}
           </label>
           <div class="row-actions">
-            <Button intent="primary" size="sm" onclick={saveEdit} loading={busy}>Save</Button>
-            <Button intent="ghost" size="sm" onclick={cancelEdit}>Cancel</Button>
+            <Button intent="primary" size="sm" onclick={saveEdit} loading={busy}
+              >{$t('admin.sites.action.save')}</Button
+            >
+            <Button intent="ghost" size="sm" onclick={cancelEdit}
+              >{$t('admin.sites.action.cancel')}</Button
+            >
           </div>
         {:else}
           <span class="handle" class:disabled={dragDisabled} aria-hidden="true">⋮⋮</span>
           <div class="info">
             <strong>{s.name}</strong>
-            <span class="slug">{s.value}</span>
-            {#if s.isDefault}<span class="badge">default</span>{/if}
-            <span class="count">{linkCountBySite.get(s.value) ?? 0} link(s)</span>
+            {#if s.isDefault}<span class="badge">{$t('admin.sites.badge.default')}</span>{/if}
+            <span class="count"
+              >{$t('admin.sites.linkCount', { count: linkCountBySite.get(s.value) ?? 0 })}</span
+            >
           </div>
           <div class="row-actions">
-            <Button intent="ghost" size="sm" onclick={() => startEdit(s)}>Edit</Button>
-            <Button intent="ghost" size="sm" onclick={() => remove(s)}>Delete</Button>
+            <Button intent="ghost" size="sm" onclick={() => startEdit(s)}
+              >{$t('admin.sites.action.edit')}</Button
+            >
+            <Button intent="ghost" size="sm" onclick={() => remove(s)}
+              >{$t('admin.sites.action.delete')}</Button
+            >
           </div>
         {/if}
       </li>
     {/each}
   </ul>
   {#if sites.length === 0}
-    <p class="empty">No sites yet. Create one to start adding per-site links.</p>
+    <p class="empty">{$t('admin.sites.empty')}</p>
   {/if}
 </div>
 
@@ -224,10 +256,6 @@
     margin: 0;
     font-size: var(--fs-sm);
     color: var(--c-text-3);
-    code {
-      font-family: var(--ft-mono);
-      color: var(--c-text-2);
-    }
   }
   .list {
     list-style: none;
@@ -252,7 +280,13 @@
   }
   .row.editing,
   .create-row {
-    grid-template-columns: 1fr 1fr auto auto;
+    grid-template-columns: 1fr auto auto;
+    /* Bottom-align so action buttons sit flush with the input box's
+     * baseline. Without this the buttons hover at the top of the row
+     * (because grid items default to `stretch` and an Input cell is
+     * taller than a Button cell — the label adds vertical space above
+     * the actual input control). */
+    align-items: end;
   }
   .handle {
     color: var(--c-text-3);
@@ -274,11 +308,6 @@
     strong {
       font-size: var(--fs-md);
     }
-    .slug {
-      font-family: var(--ft-mono);
-      font-size: var(--fs-sm);
-      color: var(--c-text-3);
-    }
     .count {
       font-size: var(--fs-xs);
       color: var(--c-text-3);
@@ -295,7 +324,15 @@
   .row-actions {
     display: flex;
     gap: var(--sp-2);
-    align-items: end;
+  }
+  /* Match input control's vertical position: the Input has a label
+   * above it, so its actual control box sits ~20px below the cell's
+   * top edge. With grid `align-items: end` on the parent, this cell
+   * is positioned at the row bottom, so the row of buttons lands at
+   * the same baseline as the input boxes themselves. */
+  .row.editing .row-actions,
+  .create-row .row-actions {
+    padding-bottom: 0;
   }
   .def {
     display: inline-flex;
@@ -303,8 +340,11 @@
     gap: var(--sp-2);
     font-size: var(--fs-sm);
     color: var(--c-text-2);
-    align-self: end;
-    padding-bottom: var(--sp-2);
+    /* Sit at the input's baseline (control bottom) by reserving the
+     * same control height the Input uses. The .control inside Input
+     * is 36px tall; matching that here keeps the checkbox vertically
+     * centred against the input box rather than floating above it. */
+    height: 36px;
   }
   .empty {
     padding: var(--sp-4);

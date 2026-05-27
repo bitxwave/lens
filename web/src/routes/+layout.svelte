@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/stores';
   import Header from '$lib/components/Header/index.svelte';
   import Footer from '$lib/components/Footer/index.svelte';
   import ToastViewport from '$lib/components/ui/ToastViewport.svelte';
@@ -7,17 +8,25 @@
   import '../app.scss';
 
   let { children } = $props();
+
+  /** Admin pages opt out of the public-facing chrome (Launchpad header,
+   *  copyright footer, gradient backdrop). They render their own
+   *  dashboard layout inside +page.svelte. The body class also flips
+   *  the global gradient over to a neutral surface — see app.scss. */
+  const isAdmin = $derived($page.url.pathname.startsWith('/admin'));
 </script>
 
-<svelte:body class:jiggle-mode={$jiggleMode} />
+<svelte:body class:jiggle-mode={$jiggleMode} class:admin-route={isAdmin} />
 
-<Header />
-
-<main>
+{#if isAdmin}
   {@render children()}
-</main>
-
-<Footer />
+{:else}
+  <Header />
+  <main>
+    {@render children()}
+  </main>
+  <Footer />
+{/if}
 
 <ToastViewport />
 
