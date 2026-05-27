@@ -25,10 +25,7 @@ async fn seed_populates_sites_and_folders() {
         .filter(|c| matches!(c.kind, CardKind::Item))
         .collect();
     assert!(!items.is_empty(), "expected items seeded from bootstrap");
-    assert_eq!(
-        cfg.get("site_name").await.unwrap().as_deref(),
-        Some("Lens")
-    );
+    assert_eq!(cfg.get("site_name").await.unwrap().as_deref(), Some("Lens"));
 }
 
 #[tokio::test]

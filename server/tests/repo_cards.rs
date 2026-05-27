@@ -64,7 +64,10 @@ async fn create_item_with_links_round_trips() {
     let mut p = item_payload("X", None);
     p.links = links.clone();
     let a = repo.create_card(p).await.unwrap();
-    assert_eq!(a.links.get("shangHai").map(|s| s.as_str()), Some("http://x"));
+    assert_eq!(
+        a.links.get("shangHai").map(|s| s.as_str()),
+        Some("http://x")
+    );
 }
 
 #[tokio::test]
@@ -119,10 +122,7 @@ async fn folder_cannot_be_created_inside_folder() {
 #[tokio::test]
 async fn delete_folder_releases_children_to_root() {
     let (repo, _) = make_repo().await;
-    let folder = repo
-        .create_card(folder_payload("F", "f"))
-        .await
-        .unwrap();
+    let folder = repo.create_card(folder_payload("F", "f")).await.unwrap();
     let a = repo
         .create_card(item_payload("A", Some(folder.id)))
         .await
@@ -214,10 +214,7 @@ async fn auto_folder_creates_folder_with_two_items() {
 #[tokio::test]
 async fn folder_dissolves_when_only_one_child_remains() {
     let (repo, _) = make_repo().await;
-    let folder = repo
-        .create_card(folder_payload("F", "f"))
-        .await
-        .unwrap();
+    let folder = repo.create_card(folder_payload("F", "f")).await.unwrap();
     let _a = repo
         .create_card(item_payload("A", Some(folder.id)))
         .await
@@ -251,10 +248,7 @@ async fn folder_dissolves_when_only_one_child_remains() {
 #[tokio::test]
 async fn folder_dissolves_when_last_child_deleted() {
     let (repo, _) = make_repo().await;
-    let folder = repo
-        .create_card(folder_payload("F", "f"))
-        .await
-        .unwrap();
+    let folder = repo.create_card(folder_payload("F", "f")).await.unwrap();
     let a = repo
         .create_card(item_payload("A", Some(folder.id)))
         .await
@@ -275,10 +269,7 @@ async fn folder_dissolves_when_last_child_deleted() {
 #[tokio::test]
 async fn patch_moves_item_into_folder() {
     let (repo, _) = make_repo().await;
-    let folder = repo
-        .create_card(folder_payload("F", "f"))
-        .await
-        .unwrap();
+    let folder = repo.create_card(folder_payload("F", "f")).await.unwrap();
     let a = repo.create_card(item_payload("A", None)).await.unwrap();
     repo.patch_card(
         a.id,

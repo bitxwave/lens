@@ -106,7 +106,10 @@ async fn legacy_routes_are_unreachable() {
     // mismatch on a leftover prefix); either way the route does not
     // succeed. We assert the absence of a 2xx.
     let server = auth_server().await;
-    let r1 = server.post("/api/groups").json(&serde_json::json!({})).await;
+    let r1 = server
+        .post("/api/groups")
+        .json(&serde_json::json!({}))
+        .await;
     assert!(!r1.status_code().is_success());
     let r2 = server.post("/api/items").json(&serde_json::json!({})).await;
     assert!(!r2.status_code().is_success());

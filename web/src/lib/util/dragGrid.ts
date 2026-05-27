@@ -480,8 +480,14 @@ function readMetaFromCell(cell: HTMLElement): CardMeta | null {
  * threshold.
  */
 function classifyIntent(target: DOMRect, dragged: DOMRect, cursorX: number): DropIntent {
-  const overlapW = Math.max(0, Math.min(target.right, dragged.right) - Math.max(target.left, dragged.left));
-  const overlapH = Math.max(0, Math.min(target.bottom, dragged.bottom) - Math.max(target.top, dragged.top));
+  const overlapW = Math.max(
+    0,
+    Math.min(target.right, dragged.right) - Math.max(target.left, dragged.left)
+  );
+  const overlapH = Math.max(
+    0,
+    Math.min(target.bottom, dragged.bottom) - Math.max(target.top, dragged.top)
+  );
   const overlapArea = overlapW * overlapH;
   const targetArea = target.width * target.height;
   const draggedArea = dragged.width * dragged.height;
@@ -1095,9 +1101,7 @@ export function dragGrid(
         }
       }
       if (nearest) {
-        const intent: DropIntent = cursorOnLeftHalfOf(nearest.rect, s.cursorX)
-          ? 'before'
-          : 'after';
+        const intent: DropIntent = cursorOnLeftHalfOf(nearest.rect, s.cursorX) ? 'before' : 'after';
         return {
           ...s.hover,
           target: { id: nearest.cardId, kind: nearest.kind, zone: nearest.zone },
@@ -1151,9 +1155,7 @@ export function dragGrid(
     // render flush will see new data AND cleared shifts in the same
     // pass. No flicker.
     const cells =
-      s.lifted && !canceled
-        ? Array.from(node.querySelectorAll<HTMLElement>('[data-card-id]'))
-        : [];
+      s.lifted && !canceled ? Array.from(node.querySelectorAll<HTMLElement>('[data-card-id]')) : [];
     // While we wait, suppress transitions on the cells so the eventual
     // shift-clear is an instant snap rather than a 220ms slide. With
     // Strategy (b) the snap is invisible because data + shifts clear

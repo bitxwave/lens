@@ -20,10 +20,11 @@ fn now_ms() -> i64 {
 }
 
 pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
-    let legacy_present: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='groups'")
-            .fetch_one(pool)
-            .await?;
+    let legacy_present: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='groups'",
+    )
+    .fetch_one(pool)
+    .await?;
     if legacy_present == 0 {
         return Ok(());
     }
@@ -33,9 +34,10 @@ pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
     let mut tx = pool.begin().await?;
 
     // ----- 1. groups -> cards (kind='folder', root) -----
-    let group_rows = sqlx::query("SELECT id, slug, name, sort_order FROM groups ORDER BY sort_order, id")
-        .fetch_all(&mut *tx)
-        .await?;
+    let group_rows =
+        sqlx::query("SELECT id, slug, name, sort_order FROM groups ORDER BY sort_order, id")
+            .fetch_all(&mut *tx)
+            .await?;
 
     let mut group_id_map: HashMap<i64, i64> = HashMap::new();
     for (idx, row) in group_rows.iter().enumerate() {
@@ -68,7 +70,16 @@ pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
 
     // Bucket items by their NEW parent_id (None = root) so we can renumber
     // contiguously starting at the next free slot in each bucket.
-    type LegacyItem = (i64, Option<i64>, String, Option<String>, String, String, i64, i64);
+    type LegacyItem = (
+        i64,
+        Option<i64>,
+        String,
+        Option<String>,
+        String,
+        String,
+        i64,
+        i64,
+    );
     let mut buckets: BTreeMap<Option<i64>, Vec<usize>> = BTreeMap::new();
     let mut item_records: Vec<LegacyItem> = Vec::with_capacity(item_rows.len());
     for (idx, row) in item_rows.iter().enumerate() {
@@ -100,8 +111,16 @@ pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
         // start root items after them. Folder buckets start at 0.
         let base_offset = if parent.is_none() { folder_count } else { 0 };
         for (offset, idx) in indices.iter().enumerate() {
-            let (old_id, new_parent, name, description, icon_kind, icon_value, created_at, updated_at) =
-                &item_records[*idx];
+            let (
+                old_id,
+                new_parent,
+                name,
+                description,
+                icon_kind,
+                icon_value,
+                created_at,
+                updated_at,
+            ) = &item_records[*idx];
             let sort_order = base_offset + offset as i64;
             let res = sqlx::query(
                 "INSERT INTO cards (kind, parent_id, sort_order, name, icon_kind, icon_value, description, created_at, updated_at) \
@@ -141,7 +160,9 @@ pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
     }
 
     // ----- 4. drop legacy tables -----
-    sqlx::query("DROP TABLE item_links").execute(&mut *tx).await?;
+    sqlx::query("DROP TABLE item_links")
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DROP TABLE items").execute(&mut *tx).await?;
     sqlx::query("DROP TABLE groups").execute(&mut *tx).await?;
 
@@ -171,8 +192,12 @@ mod tests {
     async fn migrate_copies_groups_items_and_drops_legacy() {
         let pool = legacy_pool().await;
         // Seed legacy data
-        sqlx::query("INSERT INTO sites (value, name, sort_order, is_default) VALUES ('a', 'A', 0, 1)")
-            .execute(&pool).await.unwrap();
+        sqlx::query(
+            "INSERT INTO sites (value, name, sort_order, is_default) VALUES ('a', 'A', 0, 1)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
         sqlx::query("INSERT INTO groups (slug, name, sort_order, collapsed_default) VALUES ('tools', 'Tools', 0, 0)")
             .execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO groups (slug, name, sort_order, collapsed_default) VALUES ('media', 'Media', 1, 0)")
@@ -182,32 +207,45 @@ mod tests {
         sqlx::query("INSERT INTO items (group_id, name, icon_kind, icon_value, sort_order, created_at, updated_at) VALUES (1, 'Y', 'asset', 'y.png', 1, 0, 0)")
             .execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO item_links (item_id, site_id, url) VALUES (1, 1, 'http://x')")
-            .execute(&pool).await.unwrap();
+            .execute(&pool)
+            .await
+            .unwrap();
 
         migrate_if_needed(&pool).await.unwrap();
 
         // Cards: 2 folders + 2 items
         let card_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cards")
-            .fetch_one(&pool).await.unwrap();
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(card_count, 4);
-        let folder_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cards WHERE kind='folder'")
-            .fetch_one(&pool).await.unwrap();
+        let folder_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM cards WHERE kind='folder'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(folder_count, 2);
         // Items live under the first folder
         let parent: Option<i64> = sqlx::query_scalar("SELECT parent_id FROM cards WHERE name='X'")
-            .fetch_one(&pool).await.unwrap();
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert!(parent.is_some());
 
         // Card link migrated
         let link_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM card_links")
-            .fetch_one(&pool).await.unwrap();
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(link_count, 1);
 
         // Legacy tables dropped
         let groups_left: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='groups'",
         )
-        .fetch_one(&pool).await.unwrap();
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(groups_left, 0);
     }
 
@@ -218,7 +256,9 @@ mod tests {
         // Second call: must be a no-op
         migrate_if_needed(&pool).await.unwrap();
         let card_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cards")
-            .fetch_one(&pool).await.unwrap();
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(card_count, 0);
     }
 }

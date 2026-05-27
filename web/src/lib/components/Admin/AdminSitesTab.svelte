@@ -102,9 +102,7 @@
     if (busy) return;
     const count = linkCountBySite.get(s.value) ?? 0;
     if (count > 0) {
-      toast.error(
-        $t('admin.sites.toast.referencedBy', { name: s.name, count })
-      );
+      toast.error($t('admin.sites.toast.referencedBy', { name: s.name, count }));
       return;
     }
     if (!confirm($t('admin.sites.confirmDelete', { name: s.name }))) return;
