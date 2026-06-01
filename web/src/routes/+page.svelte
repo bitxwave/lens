@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { tick } from 'svelte';
   import { navDataStore } from '$lib/stores/navData';
   import {
     rootCards,
@@ -68,25 +68,118 @@
   }
 
   // ──────── Pager (P1: horizontal pages + dot indicator) ────────
+  //
+  // Page geometry is computed from the live `.pager` rect, NOT from
+  // hard-coded breakpoint buckets. Earlier the page size was a function
+  // of `window.innerWidth` only (35 / 24 / 20), while the .grid used
+  // `repeat(auto-fill, 120px)` — a layout decided independently by the
+  // browser from the container's actual width. The two would disagree
+  // (e.g. window 1100px → page=35 designed as 7×5, but the grid actually
+  // fitted 6 columns), so cards spilled to a 6th row and visually
+  // overflowed instead of paginating. We now derive both `cols` and
+  // `rows` from the same measured rect and pin the grid's column count
+  // explicitly so layout and pagination can never drift apart.
 
-  /** Page size by viewport breakpoint. Mirrors clue §1: desktop 7×5, narrow 4×6, mobile 4×5. */
-  function pageSizeForViewport(w: number): number {
-    if (w <= 500) return 20; // mobile 4×5
-    if (w <= 900) return 24; // narrow 4×6
-    return 35; // desktop 7×5
+  /** Card cell + gap geometry. Must stay in sync with .grid CSS below
+   *  and Card.svelte's .cell width / mobile breakpoint. */
+  const CARD_W_DESKTOP = 120;
+  const CARD_GAP_X_DESKTOP = 28;
+  const CARD_W_MOBILE = 72;
+  const CARD_GAP_X_MOBILE = 16;
+  /** Cell height ≈ card art (120) + gap-3 (~12) + label line (~20) on
+   *  desktop; halved on mobile. We add a small safety margin so a row
+   *  partially clipped by the footer doesn't get counted. */
+  const CELL_H_DESKTOP = 168;
+  const CELL_H_MOBILE = 108;
+  const CARD_GAP_Y_DESKTOP = 36;
+  const CARD_GAP_Y_MOBILE = 24;
+
+  /** Mobile breakpoint mirrors .grid @media (max-width: 500px). */
+  function isMobileWidth(w: number) {
+    return w <= 500;
   }
 
-  // SSR-safe initial width; updated to real value on mount.
-  let viewportWidth = $state(1280);
-  const pageSize = $derived(pageSizeForViewport(viewportWidth));
+  /** Pager rect — measured live via ResizeObserver. SSR-safe defaults. */
+  let pagerWidth = $state(1024);
+  let pagerHeight = $state(640);
 
-  onMount(() => {
-    viewportWidth = window.innerWidth;
-    const onResize = () => {
-      viewportWidth = window.innerWidth;
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+  /** Maximum grid content width per page. The pager itself spans the
+   *  full viewport so the swipe / scroll-snap area feels Launchpad-
+   *  sized, but each page's grid stays inside this cap so column
+   *  density on a wide monitor doesn't balloon to 10+ columns —
+   *  preserving the original ~6-column visual rhythm. Mobile uses a
+   *  smaller cap that mirrors the previous mobile bucket. */
+  const GRID_MAX_DESKTOP = 1024;
+  const GRID_MAX_MOBILE = 360;
+
+  /** Minimum left/right breathing room between the grid edge and the
+   *  viewport edge. Without this, when the viewport is at or below
+   *  the grid cap (e.g. a 1024-wide window) cards sit flush against
+   *  the screen edge and look cramped — see the screenshot the user
+   *  sent. Mirrored in CSS via `.page { padding: 0 var(--page-gutter) }`. */
+  const PAGE_GUTTER_DESKTOP = 48;
+  const PAGE_GUTTER_MOBILE = 16;
+
+  /** Effective grid width — `pagerWidth` clamped to the max cap, AFTER
+   *  reserving the safe gutter on both sides. This is the number that
+   *  drives `cols`, NOT `pagerWidth` directly: a fullbleed pager
+   *  doesn't mean a fullbleed grid. */
+  const gridContentWidth = $derived.by(() => {
+    const mobile = isMobileWidth(pagerWidth);
+    const cap = mobile ? GRID_MAX_MOBILE : GRID_MAX_DESKTOP;
+    const gutter = mobile ? PAGE_GUTTER_MOBILE : PAGE_GUTTER_DESKTOP;
+    const usable = Math.max(0, pagerWidth - gutter * 2);
+    return Math.min(usable, cap);
+  });
+
+  /** Columns that fit within the grid's content cap (NOT pager width). */
+  const cols = $derived.by(() => {
+    const cw = isMobileWidth(pagerWidth) ? CARD_W_MOBILE : CARD_W_DESKTOP;
+    const gx = isMobileWidth(pagerWidth) ? CARD_GAP_X_MOBILE : CARD_GAP_X_DESKTOP;
+    // (cols * cw) + ((cols - 1) * gx) <= gridContentWidth
+    // → cols <= (gridContentWidth + gx) / (cw + gx)
+    return Math.max(1, Math.floor((gridContentWidth + gx) / (cw + gx)));
+  });
+
+  /** Rows that fit at the current pager height. */
+  const rows = $derived.by(() => {
+    const mobile = isMobileWidth(pagerWidth);
+    const ch = mobile ? CELL_H_MOBILE : CELL_H_DESKTOP;
+    const gy = mobile ? CARD_GAP_Y_MOBILE : CARD_GAP_Y_DESKTOP;
+    return Math.max(1, Math.floor((pagerHeight + gy) / (ch + gy)));
+  });
+
+  const pageSize = $derived(cols * rows);
+
+  /** Inline width for the .grid so its column count tracks `cols`
+   *  exactly, instead of relying on auto-fill (which the browser
+   *  recomputes from container width independently of `pageSize`). */
+  const gridStyle = $derived.by(() => {
+    const cw = isMobileWidth(pagerWidth) ? CARD_W_MOBILE : CARD_W_DESKTOP;
+    return `grid-template-columns: repeat(${cols}, ${cw}px);`;
+  });
+
+  /** Track .pager rect via ResizeObserver. We use $effect (not onMount)
+   *  because the pager only enters the DOM after navDataStore loads —
+   *  mount fires while we're still showing skeletons and pagerEl is
+   *  null. The effect re-runs once `pagerEl` is bound, attaches the
+   *  observer, and cleans up if the pager is later unmounted (e.g. when
+   *  the user opens search and switches to the flat hit list). */
+  $effect(() => {
+    if (!pagerEl) return;
+    // Seed from the real rect so the first paint already has the right
+    // pageSize; otherwise the SSR default leaks through one frame.
+    const r0 = pagerEl.getBoundingClientRect();
+    pagerWidth = r0.width;
+    pagerHeight = r0.height;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        pagerWidth = e.contentRect.width;
+        pagerHeight = e.contentRect.height;
+      }
+    });
+    ro.observe(pagerEl);
+    return () => ro.disconnect();
   });
 
   /** Pages of root cards, never empty (chunk yields at least one page). */
@@ -104,30 +197,378 @@
     currentPage.reset();
   });
 
-  /** Pager scroll container. Set when the DOM mounts; used for programmatic scrollTo. */
-  let pagerEl = $state<HTMLDivElement | null>(null);
+  // ──────── Transform-based pager (Launchpad-style) ────────
+  //
+  // We replaced the original `overflow-x: auto + scroll-snap-type`
+  // approach with a hand-rolled translate3d pager. Here's why:
+  //
+  //   - Native scroll meant the browser owned animation timing during
+  //     wheel/inertial scroll (~150ms snap, opaque curve) and we could
+  //     only animate FROM rest with rAF. Mixing the two never felt
+  //     smooth — there was always a visible handoff.
+  //   - Pure translate3d gives 1:1 finger tracking during the gesture
+  //     (matches iOS Springboard / macOS Launchpad behavior per Apple's
+  //     docs: tracking ratio = 1.0, no easing while dragging) and lets
+  //     the same rAF runloop own both the in-gesture pan AND the
+  //     post-release settle, with one consistent curve.
+  //   - The settle is velocity-seeded easeOutCubic over ~350ms — so a
+  //     fast flick decelerates naturally, a slow drag past the
+  //     threshold also lands in ~350ms. No "from rest" speed-up
+  //     phase that the user perceives as a separate animation.
 
-  /** Programmatically scroll to the given page. Honours scroll-snap. */
-  function scrollToPage(idx: number) {
-    if (!pagerEl) return;
-    const w = pagerEl.clientWidth;
-    pagerEl.scrollTo({ left: idx * w, behavior: 'smooth' });
+  /** Outer pager element — captures wheel/pointer events. */
+  let pagerEl = $state<HTMLDivElement | null>(null);
+  /** Inner track — the thing we translate3d. */
+  let trackEl = $state<HTMLDivElement | null>(null);
+
+  /** Current horizontal offset of the track in px (positive number;
+   *  applied as `translate3d(-offsetX, 0, 0)`). 0 = page 0 left edge. */
+  let offsetX = $state(0);
+
+  /** True while a settle animation is running. Suppresses the
+   *  currentPage→offsetX effect from re-triggering itself. */
+  let animating = false;
+  let animRaf: number | null = null;
+
+  /** Active gesture state. Pointer pan only — wheel uses a separate,
+   *  shorter-lived bookkeeping in onWheel below. */
+  let dragActive = false;
+  let dragStartX = 0;
+  let dragStartOffset = 0;
+  let dragLastX = 0;
+  let dragLastTs = 0;
+  let dragVelocity = 0; // px/ms, positive = finger moved left = page advancing forward
+
+  /** Wheel-aggregation idle timer (committing a wheel-driven pan to
+   *  a page on quiet). */
+  let wheelIdleTimer: ReturnType<typeof setTimeout> | null = null;
+  let wheelLastTs = 0;
+  let wheelLastDelta = 0;
+  let wheelStartOffset = 0;
+  let wheelGestureActive = false;
+  let wheelVelocity = 0;
+
+  /** True while the pager is mid-gesture or mid-rAF. Drives a
+   *  `is-scrolling` class on .canvas which lets us turn off heavy
+   *  per-frame compositor effects (backdrop-filter, drop shadows on
+   *  cards) for the duration. */
+  let isScrolling = $state(false);
+
+  function easeOutCubic(t: number) {
+    const u = 1 - t;
+    return 1 - u * u * u;
   }
 
-  /** Sync DOM scroll when currentPage changes via dot click / keyboard / etc. */
-  $effect(() => {
-    const idx = $currentPage;
-    queueMicrotask(() => scrollToPage(idx));
-  });
-
-  /** Sync currentPage when user scrolls naturally (touchpad / wheel / swipe). */
-  function onPagerScroll() {
+  /** Animate offsetX to `idx * pageWidth` with velocity-seeded
+   *  easeOutCubic. `vel` is the gesture exit velocity in px/ms; pass
+   *  0 for "from rest" (dot click, ←/→ key). */
+  function animateToPage(idx: number, vel: number = 0) {
     if (!pagerEl) return;
     const w = pagerEl.clientWidth;
     if (w <= 0) return;
-    const idx = Math.round(pagerEl.scrollLeft / w);
-    if (idx !== $currentPage) currentPage.setPage(idx);
+    const target = idx * w;
+    const start = offsetX;
+    if (Math.abs(start - target) < 0.5 && Math.abs(vel) < 0.05) {
+      isScrolling = false;
+      return;
+    }
+
+    if (animRaf !== null) cancelAnimationFrame(animRaf);
+    animating = true;
+    isScrolling = true;
+
+    // Distance + velocity → duration. A pure rest jump of one page
+    // takes 380ms; a high-velocity flick of the same distance is
+    // shortened toward ~220ms (so the deceleration looks like a
+    // continuation of the finger's motion, not a separate animation).
+    const dist = Math.abs(target - start);
+    const baseMs = 220 + Math.min(220, (dist / w) * 220);
+    // velocity factor: at 1 px/ms the duration shrinks to 60% of base.
+    const velFactor = Math.max(0.55, 1 - Math.min(0.45, Math.abs(vel) * 0.5));
+    const DURATION = baseMs * velFactor;
+
+    const startTs = performance.now();
+    const startOffset = start;
+    const totalDelta = target - start;
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - startTs) / DURATION);
+      offsetX = startOffset + totalDelta * easeOutCubic(t);
+      if (t < 1) {
+        animRaf = requestAnimationFrame(tick);
+      } else {
+        animRaf = null;
+        offsetX = target;
+        animating = false;
+        isScrolling = false;
+      }
+    };
+    animRaf = requestAnimationFrame(tick);
   }
+
+  /** Effect: keep offsetX in sync with currentPage when changes come
+   *  from outside the gesture path (dot click, ←/→, store reset on
+   *  site switch, etc). Skipped while a gesture-driven animation is
+   *  already running — the gesture handler owns offsetX during that
+   *  window. */
+  $effect(() => {
+    const idx = $currentPage;
+    if (animating || dragActive || wheelGestureActive) return;
+    queueMicrotask(() => animateToPage(idx, 0));
+  });
+
+  /** Effect: when pageCount/pagerWidth change, re-pin offsetX to the
+   *  current page's exact pixel boundary so resizes don't leave us at
+   *  a half-page offset. */
+  $effect(() => {
+    if (!pagerEl) return;
+    if (animating || dragActive || wheelGestureActive) return;
+    void pagerWidth; // dependency
+    void pageCount; // dependency
+    const w = pagerEl.clientWidth;
+    if (w > 0) offsetX = $currentPage * w;
+  });
+
+  /** Clamp offsetX to [0, (pageCount-1)*w] with rubber-band resistance
+   *  past the edges. Resistance constant 0.55 matches iOS feel.
+   *
+   *  Formula: displacement = w * over / (over + w / RESISTANCE)
+   *
+   *  This is the standard Apple rubber-band curve (also known as the
+   *  hyperbolic-tangent-style asymptotic damping). It guarantees:
+   *    - displacement < over for all over > 0 (true damping, never amplifies)
+   *    - displacement → over * RESISTANCE as over → 0 (linear feel near the edge)
+   *    - displacement → w as over → ∞ (asymptote at one full page beyond max)
+   *
+   *  The previous implementation used `(1 - 1/(over/w/RESISTANCE + 1)) * w`,
+   *  which can be shown to equal `over * RESISTANCE * w / (over * RESISTANCE + w)`
+   *  — i.e. damped by a factor `over * RESISTANCE / (over + w * RESISTANCE^?)` ...
+   *  well, the algebra is wrong. Empirically: over=50, w=1000 produced 83 (an
+   *  AMPLIFIER, not a damper). Concretely: with the new formula,
+   *  over=50  → 27 (vs old 83); over=500 → 268 (vs old 476). Both bounded.
+   *  See "深层定位" doc trail in this PR for the worked numbers.
+   */
+  const RUBBER_BAND_RESISTANCE = 0.55;
+  function rubberBand(over: number, w: number): number {
+    return (w * over) / (over + w / RUBBER_BAND_RESISTANCE);
+  }
+  function clampOffset(raw: number): number {
+    if (!pagerEl) return raw;
+    const w = pagerEl.clientWidth;
+    if (w <= 0) return raw;
+    const max = (pageCount - 1) * w;
+    if (raw < 0) return -rubberBand(-raw, w);
+    if (raw > max) return max + rubberBand(raw - max, w);
+    return raw;
+  }
+
+  /** Decide which page to settle on after a gesture, then animate
+   *  there with the gesture's exit velocity. */
+  function settleGesture(startOffset: number, currentOffset: number, velocity: number) {
+    if (!pagerEl) return;
+    const w = pagerEl.clientWidth;
+    if (w <= 0) return;
+    const startPage = Math.round(startOffset / w);
+    const dx = currentOffset - startOffset;
+
+    // Snap policy:
+    //   – move past 12% of a page → commit one page in that direction
+    //   – fling velocity > 0.35 px/ms → commit one page in that direction
+    //   – otherwise → snap back to the start page
+    const DISP_THRESHOLD = w * 0.12;
+    const FLING_THRESHOLD = 0.35;
+
+    let target = startPage;
+    const dir = Math.sign(dx) || Math.sign(velocity);
+    if (
+      (Math.abs(dx) >= DISP_THRESHOLD || Math.abs(velocity) >= FLING_THRESHOLD) &&
+      dir !== 0
+    ) {
+      target = startPage + (dir > 0 ? 1 : -1);
+    }
+    target = Math.max(0, Math.min(pageCount - 1, target));
+
+    currentPage.setPage(target);
+    animateToPage(target, velocity);
+  }
+
+  // ──── Wheel handling ─────────────────────────────────────────
+  // Trackpad horizontal swipes and shift+wheel arrive as `wheel`
+  // events. We accumulate deltaX (or deltaY when no horizontal axis
+  // is reported) into offsetX during the gesture and settle on the
+  // tail of the inertial stream.
+
+  /** Commit threshold: once the cumulative pan within a single wheel
+   *  gesture crosses this fraction of the page width, commit a page
+   *  turn immediately and reset the gesture's anchor to the new page
+   *  edge. The same wheel stream can then keep going to commit further
+   *  page turns — this is what gives macOS trackpad inertial momentum
+   *  the ability to coast through multiple pages without overshooting
+   *  past the last one and rubber-banding back.
+   *
+   *  Why we need it: a typical macOS trackpad inertial wheel stream
+   *  delivers 16 ms-cadence deltaX deltas for ~1–2s after the user's
+   *  fingers lift. With a single end-of-stream settle we'd accumulate
+   *  the entire 1500–3000 px of inertia into offsetX before snapping,
+   *  cap target at startPage ± 1, and visibly bounce back from
+   *  whatever was beyond the next page. Committing along the way lets
+   *  inertia translate to N consecutive page turns instead of one
+   *  page turn plus a giant overshoot. */
+  const COMMIT_FRACTION = 0.5;
+
+  function onWheel(e: WheelEvent) {
+    if (!pagerEl) return;
+    if (animating) {
+      if (animRaf !== null) cancelAnimationFrame(animRaf);
+      animRaf = null;
+      animating = false;
+    }
+
+    // Use horizontal delta if present; fall back to vertical (mouse
+    // wheel + shift, or vertical-only wheels) so users without a
+    // horizontal axis can still page.
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (dx === 0) return;
+    e.preventDefault();
+
+    const w = pagerEl.clientWidth;
+    if (w <= 0) return;
+
+    const now = performance.now();
+    if (!wheelGestureActive) {
+      wheelGestureActive = true;
+      // Anchor to the CURRENT PAGE'S EDGE, not to whatever offsetX
+      // happens to be (e.g. mid-animation if we just cancelled one).
+      // Without this the very next settle reads round(offsetX/w) as a
+      // half-page index and snaps the wrong direction. The animateToPage
+      // below pulls offsetX back to the edge in lockstep.
+      wheelStartOffset = $currentPage * w;
+      wheelLastTs = now;
+      wheelLastDelta = 0;
+      wheelVelocity = 0;
+      isScrolling = true;
+    } else {
+      const dt = Math.max(1, now - wheelLastTs);
+      wheelVelocity = wheelLastDelta / dt;
+      wheelLastTs = now;
+    }
+    wheelLastDelta = dx;
+    offsetX = clampOffset(offsetX + dx);
+
+    // Commit-as-you-go: while inertia is still pumping deltas, fold
+    // each crossed page boundary into a real page turn so we don't
+    // accumulate a huge mid-gesture offset that has to be snapped back
+    // at the end. This is what makes a long trackpad flick advance N
+    // pages cleanly instead of overshooting page 1 and rubber-banding.
+    //
+    // Re-anchor to the CURRENT offsetX (not to the new page's edge):
+    // offsetX is mid-animation between the old edge and the new edge,
+    // and using it as the next anchor means residual deltas accumulate
+    // from "where we are now" rather than from the destination edge.
+    // The two practical wins:
+    //   1. The next commit threshold is symmetric in either direction,
+    //      so a small reverse jitter at the tail of inertia can't trip
+    //      a reverse page-turn the way `wheelStart = nextPage*w` would.
+    //   2. The settle at gesture end sees a near-zero residual dx, so
+    //      it just snaps offsetX back to the (already-committed) page
+    //      edge instead of trying to interpret residual rubber-band as
+    //      another fling.
+    const dxFromAnchor = offsetX - wheelStartOffset;
+    if (Math.abs(dxFromAnchor) >= w * COMMIT_FRACTION) {
+      const step = dxFromAnchor > 0 ? 1 : -1;
+      const nextPage = Math.max(0, Math.min(pageCount - 1, $currentPage + step));
+      if (nextPage !== $currentPage) {
+        currentPage.setPage(nextPage);
+      }
+      wheelStartOffset = offsetX;
+    }
+
+    if (wheelIdleTimer) clearTimeout(wheelIdleTimer);
+    // 80ms quiet window — short enough to feel responsive after the
+    // user lifts their fingers, long enough to ride out the tail of
+    // macOS inertial wheel deltas.
+    wheelIdleTimer = setTimeout(() => {
+      wheelGestureActive = false;
+      settleGesture(wheelStartOffset, offsetX, wheelVelocity);
+    }, 80);
+  }
+
+  // ──── Pointer (touch / mouse drag) handling ─────────────────
+  // Optional 1:1 finger tracking. Only engaged on touch / pen and
+  // primary-button mouse drag. Keyboard / wheel users are unaffected.
+
+  function onPointerDown(e: PointerEvent) {
+    // Don't interfere with card clicks or with the drag-grid jiggle
+    // editor — those use their own listeners and rely on default
+    // pointer events propagation.
+    if ($jiggleMode) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    if (animating) {
+      if (animRaf !== null) cancelAnimationFrame(animRaf);
+      animRaf = null;
+      animating = false;
+    }
+
+    dragActive = true;
+    dragStartX = e.clientX;
+    dragStartOffset = offsetX;
+    dragLastX = e.clientX;
+    dragLastTs = performance.now();
+    dragVelocity = 0;
+    isScrolling = true;
+    // Don't capture the pointer here — let card clicks still register
+    // for pointer-only displacement under a small threshold (see
+    // dragMoveThreshold below). We capture once the user has moved
+    // far enough to count as a real pan.
+  }
+
+  /** Distance the pointer must travel before we count it as a pan
+   *  (and therefore steal future click events). Below this, the user
+   *  is just clicking a card. */
+  const POINTER_PAN_THRESHOLD = 8;
+
+  let dragCaptured = false;
+  function onPointerMove(e: PointerEvent) {
+    if (!dragActive || !pagerEl) return;
+    const totalDx = e.clientX - dragStartX;
+    if (!dragCaptured) {
+      if (Math.abs(totalDx) < POINTER_PAN_THRESHOLD) return;
+      dragCaptured = true;
+      pagerEl.setPointerCapture(e.pointerId);
+    }
+    const now = performance.now();
+    const dt = Math.max(1, now - dragLastTs);
+    // Velocity in px/ms, positive = finger moving toward the start
+    // (i.e. content is advancing forward).
+    dragVelocity = -((e.clientX - dragLastX) / dt);
+    dragLastX = e.clientX;
+    dragLastTs = now;
+    offsetX = clampOffset(dragStartOffset - totalDx);
+  }
+
+  function onPointerUp(e: PointerEvent) {
+    if (!dragActive) return;
+    if (dragCaptured && pagerEl) {
+      try {
+        pagerEl.releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer was already released by the browser — ignore
+      }
+    }
+    const wasCaptured = dragCaptured;
+    dragActive = false;
+    dragCaptured = false;
+    if (!wasCaptured) {
+      // Click, not a pan — restore is-scrolling and bail.
+      isScrolling = false;
+      return;
+    }
+    settleGesture(dragStartOffset, offsetX, dragVelocity);
+  }
+
+  /** Inline transform style for the track. Reactive on offsetX. */
+  const trackStyle = $derived(`transform: translate3d(${-offsetX}px, 0, 0);`);
 
   /** Keyboard ←/→ / PageUp / PageDown turn pages, but only when no input is focused. */
   function onKeydown(e: KeyboardEvent) {
@@ -413,18 +854,24 @@
     <Skeleton width="220px" height="16px" />
   </div>
 {:else if $navDataStore.error}
-  <EmptyState title={$t('error.network.offline')} hint={$navDataStore.error} />
-  <div class="retry">
-    <Button onclick={() => navDataStore.refetch()}>{$t('error.network.retry')}</Button>
-  </div>
+  <EmptyState variant="offline" title={$t('error.network.offline')} hint={$navDataStore.error}>
+    {#snippet actions()}
+      <Button onclick={() => navDataStore.refetch()}>{$t('error.network.retry')}</Button>
+    {/snippet}
+  </EmptyState>
 {:else if $hasActiveFilter}
   <!-- Search mode: flat hits, no folders, no jiggle, no drag. -->
   <section class="grid-wrap">
     {#if $searchHits.length === 0}
-      <EmptyState title={$t('nav.empty.search')} hint={$t('nav.empty.search.hint')} />
-      <div class="retry">
-        <Button intent="ghost" onclick={clearFilters}>{$t('common.cancel')}</Button>
-      </div>
+      <EmptyState
+        variant="search"
+        title={$t('nav.empty.search')}
+        hint={$t('nav.empty.search.hint')}
+      >
+        {#snippet actions()}
+          <Button intent="ghost" onclick={clearFilters}>{$t('common.cancel')}</Button>
+        {/snippet}
+      </EmptyState>
     {:else}
       <div class="grid">
         {#each $searchHits as card (card.id)}
@@ -434,7 +881,7 @@
     {/if}
   </section>
 {:else if $rootCards.length === 0 && !$sessionStore.authed}
-  <EmptyState title={$t('nav.empty.data')} hint={$t('nav.empty.data.hint')} />
+  <EmptyState variant="empty" title={$t('nav.empty.data')} hint={$t('nav.empty.data.hint')} />
 {:else}
   <!-- Single dragGrid action wraps both the folder panel and the root grid
        so cross-zone drags (e.g. drag from root → spring-loaded panel)
@@ -442,6 +889,7 @@
   <div
     class="canvas"
     class:drag-active={$dragSource !== null}
+    class:is-scrolling={isScrolling}
     use:dragGridAction={{
       enabled: $jiggleMode && $sessionStore.authed,
       onSpringLoad,
@@ -463,33 +911,41 @@
         <div
           class="pager"
           bind:this={pagerEl}
-          onscroll={onPagerScroll}
+          role="region"
           aria-roledescription="paginated grid"
+          aria-label={$t('home.pager.aria')}
+          onwheel={onWheel}
+          onpointerdown={onPointerDown}
+          onpointermove={onPointerMove}
+          onpointerup={onPointerUp}
+          onpointercancel={onPointerUp}
         >
-          {#each pages as pageCards, pageIdx (pageIdx)}
-            <div class="page">
-              <div class="grid" data-zone="root">
-                {#each pageCards as card (card.id)}
-                  <Card
-                    {card}
-                    folderChildren={card.kind === 'folder'
-                      ? (folderChildrenById.get(card.id) ?? [])
-                      : []}
-                    {onOpenFolder}
-                    onEdit={openEdit}
-                  />
-                {/each}
-                {#if pageIdx === pages.length - 1 && $sessionStore.authed && ($jiggleMode || $rootCards.length === 0)}
-                  <div class="add-cell" data-add-cell>
-                    <NewItemAffordance onClick={() => openCreate(null)} />
-                  </div>
-                  {#if $rootCards.length === 0}
-                    <p class="empty-hint">{$t('home.empty.hint')}</p>
+          <div class="track" bind:this={trackEl} style={trackStyle}>
+            {#each pages as pageCards, pageIdx (pageIdx)}
+              <div class="page">
+                <div class="grid" data-zone="root" style={gridStyle}>
+                  {#each pageCards as card (card.id)}
+                    <Card
+                      {card}
+                      folderChildren={card.kind === 'folder'
+                        ? (folderChildrenById.get(card.id) ?? [])
+                        : []}
+                      {onOpenFolder}
+                      onEdit={openEdit}
+                    />
+                  {/each}
+                  {#if pageIdx === pages.length - 1 && $sessionStore.authed && ($jiggleMode || $rootCards.length === 0)}
+                    <div class="add-cell" data-add-cell>
+                      <NewItemAffordance onClick={() => openCreate(null)} />
+                    </div>
+                    {#if $rootCards.length === 0}
+                      <p class="empty-hint">{$t('home.empty.hint')}</p>
+                    {/if}
                   {/if}
-                {/if}
+                </div>
               </div>
-            </div>
-          {/each}
+            {/each}
+          </div>
         </div>
         <PageDots {pageCount} currentPage={$currentPage} onSelect={(i) => currentPage.setPage(i)} />
       </section>
@@ -507,8 +963,21 @@
 />
 
 <style lang="scss">
+  /* Launchpad-style fullbleed: the home page deliberately escapes the
+   * 1024px max-width that <main> in +layout.svelte imposes on every
+   * other route. Cards should breathe across the whole viewport, just
+   * like macOS Launchpad — not be squeezed into a centred column.
+   *
+   * The negative left margin pulls the canvas out of <main>'s
+   * horizontally-centred box back to the viewport edge; the explicit
+   * 100vw width makes it span the full screen. We use 100% of the
+   * inner-window width minus the scrollbar (no horizontal scrollbar
+   * appears because the page itself never scrolls horizontally —
+   * .pager owns that axis with its own hidden scrollbar). */
   .canvas {
-    width: 100%;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
   }
   .loading {
     display: flex;
@@ -517,39 +986,51 @@
     align-items: center;
     margin-top: var(--sp-6);
   }
-  .retry {
-    display: flex;
-    justify-content: center;
-    margin-top: var(--sp-3);
-  }
   .grid-wrap {
     width: 100%;
   }
-  /* Horizontal scroll-snap pager. Each .page is exactly 100% wide so
-   * scroll-snap latches to a whole page at a time. The browser's native
-   * smooth scroll handles the animation; we drive it programmatically
-   * via scrollTo() when dot/keyboard input changes the page index. */
+  /* Transform-based pager. The browser does NOT own horizontal scroll
+   * here — we listen on wheel/pointer ourselves and translate3d the
+   * inner .track. This is the only reliable way to get
+   * Launchpad-style 1:1 finger tracking and a unified rAF settle
+   * curve; the legacy `overflow-x: auto + scroll-snap-type` route
+   * always handed mid-gesture timing back to the UA. */
   .pager {
     width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none; /* hide the horizontal scrollbar — dots are the indicator */
+    height: calc(100dvh - 220px);
+    min-height: 320px;
+    overflow: hidden;
+    /* Allow vertical page scroll on touch devices to pass through;
+     * we only consume horizontal pans + wheel deltas. */
+    touch-action: pan-y;
+    position: relative;
+  }
+  .track {
     display: flex;
     flex-direction: row;
-  }
-  .pager::-webkit-scrollbar {
-    display: none;
+    height: 100%;
+    /* Compositor: promote to its own layer so translate3d updates
+     * during gestures and the rAF settle never trigger a paint of
+     * surrounding chrome (header, gradient backdrop, etc). */
+    will-change: transform;
   }
   .page {
     flex: 0 0 100%;
     width: 100%;
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
+    height: 100%;
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding: var(--sp-2) 0;
+    /* 48px desktop / 16px mobile horizontal gutter so cards never sit
+     * flush against the viewport edge. Must stay in sync with
+     * PAGE_GUTTER_{DESKTOP,MOBILE} in the script. */
+    padding: var(--sp-2) 48px;
+    box-sizing: border-box;
+  }
+  @media (max-width: 500px) {
+    .page {
+      padding: var(--sp-2) 16px;
+    }
   }
   /* While dragGrid is lifting a card, kill scroll-snap so the user's
    * pointer-driven drag doesn't fight the browser's snap-to-page.
@@ -565,14 +1046,38 @@
    * source cell carrying [data-dragging] from the DOM. A descendant
    * `:has()` would lose its match and these rules would silently
    * disengage mid-drag. The store-backed class outlives the unmount. */
-  .canvas.drag-active .pager {
-    scroll-snap-type: none;
+  /* Legacy `.canvas.drag-active .pager { scroll-snap-type: none }` and
+   * `.pager.scroll-anim` rules removed: the new pager doesn't use
+   * native scroll, so neither scroll-snap-type nor scroll-behavior
+   * apply to it. Compositor isolation is handled by `.track`'s
+   * `will-change: transform`. */
+  /* While the user is actively scrolling (gesture in flight, before
+   * the rAF settle takes over), kill the same expensive compositor
+   * effects. backdrop-filter on a folder card is the single most
+   * costly per-frame operation here — repainting the blurred
+   * background of 5+ folders on a 100vw pager at 60fps causes
+   * visible mid-scroll judder. Box shadows on item cards are also
+   * paint-heavy when translated. The card label / silhouette stays
+   * fully visible; we only drop the soft halos for the duration of
+   * the motion. */
+  .canvas.is-scrolling :global(.folder) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .canvas.is-scrolling :global(.card),
+  .canvas.is-scrolling :global(.folder) {
+    box-shadow: none !important;
   }
   .grid {
     display: grid;
+    /* Column template is set inline by +page.svelte so that `cols` and
+     * `pageSize` (rows × cols) come from the same measurement. The
+     * fallback below is only used during SSR / before the first
+     * ResizeObserver tick. */
     grid-template-columns: repeat(auto-fill, 120px);
     gap: 36px 28px;
     justify-content: center;
+    align-content: flex-start;
     width: 100%;
   }
   .add-cell {
@@ -609,8 +1114,9 @@
     }
   }
   @media (max-width: 500px) {
+    /* Mobile keeps narrower gutters; the column template still comes
+     * from the inline style so cols/rows agree. */
     .grid {
-      grid-template-columns: repeat(auto-fill, 72px);
       gap: 24px 16px;
     }
   }

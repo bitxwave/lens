@@ -6,6 +6,12 @@ expose multiple URLs grouped under user-defined "sites" (think work / home,
 or shanghai / beijing) — switch the active site from the header and every card
 re-points to its matching URL without changing the layout.
 
+The home view is a macOS Launchpad-style paginated grid: cards reflow into pages
+sized from the live container rect, the page turner runs as a hand-rolled
+`translate3d` track (1:1 finger tracking on trackpad, snap-on-release on mouse
+wheel, dot indicator + ←/→ keyboard), and `jiggle mode` enables drag-to-reorder,
+drag-into-folder, and item-on-item auto-folder gestures.
+
 The Rust binary serves both the JSON API (`/api/*`) and the SvelteKit SPA static
 assets in a single process — no separate web server or reverse proxy required.
 Designed for intranet self-hosting; expose via your network's existing TLS
@@ -190,7 +196,13 @@ full design. Briefly:
 - **Frontend**: Svelte 5 (runes) + SvelteKit 2, no UI library — design tokens and
   10 hand-built primitives under `web/src/lib/components/ui/`. `apiClient` validates
   every response against zod schemas mirroring the backend types. Self-implemented
-  i18n (~80 lines), no library.
+  i18n (~80 lines), no library. The Launchpad pager (`web/src/routes/+page.svelte`)
+  owns horizontal scroll itself — `translate3d` track + rAF settle curve — instead
+  of native `overflow-x: auto + scroll-snap`, so the same animation loop covers
+  in-gesture pan, post-release settle, drag-to-edge auto page turn, and trackpad
+  inertial multi-page commit. Drag-and-drop is `dragGrid` action in
+  `web/src/lib/util/dragGrid.ts`, with merge / reorder / spring-load resolved
+  against a layout cache rebuilt on spring-load and edge-pan.
 - **Backend**: Axum 0.7 + SQLx (SQLite WAL). 3NF schema. Single-admin auth
   (bcrypt + signed cookie session via `tower-sessions`). CRUD endpoints behind a
   `RequireAuth` extractor. Favicon proxy with 7-day disk cache. CLI subcommand
@@ -201,9 +213,17 @@ full design. Briefly:
 
 ## Roadmap
 
-Future enhancements (not in current shipped Plans 1–5):
+Shipped since the original Plans 1–5:
 
-- Drag-and-drop reorder of nav items
+- ✅ Launchpad-style paginated home with horizontal page turn (trackpad / wheel /
+  pointer / ←→ keyboard) and dot indicator
+- ✅ Jiggle-mode drag-and-drop: reorder cards, drag-into-folder, item-on-item
+  auto-folder, edge-pan to adjacent page during a drag, spring-loaded folders
+- ✅ Inline folder expand panel (backdrop blur + click-outside dismiss)
+- ✅ Dedicated admin dashboard layout (separate from the public Launchpad chrome)
+
+Still ahead:
+
 - Full management UI for groups, sites, tags (currently editable via API only)
 - Site settings dialog (site name, avatar upload, ICP filings, default theme)
 - Multi-user / OAuth / audit log
