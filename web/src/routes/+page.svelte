@@ -380,10 +380,7 @@
 
     let target = startPage;
     const dir = Math.sign(dx) || Math.sign(velocity);
-    if (
-      (Math.abs(dx) >= DISP_THRESHOLD || Math.abs(velocity) >= FLING_THRESHOLD) &&
-      dir !== 0
-    ) {
+    if ((Math.abs(dx) >= DISP_THRESHOLD || Math.abs(velocity) >= FLING_THRESHOLD) && dir !== 0) {
       target = startPage + (dir > 0 ? 1 : -1);
     }
     target = Math.max(0, Math.min(pageCount - 1, target));
