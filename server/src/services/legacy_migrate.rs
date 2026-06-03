@@ -8,7 +8,7 @@
 //! application refuses to start if this returns an error.
 
 use crate::error::{AppError, Result};
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 use std::collections::{BTreeMap, HashMap};
 
 fn now_ms() -> i64 {
@@ -20,8 +20,8 @@ fn now_ms() -> i64 {
 }
 
 pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
-    let legacy_present: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='groups'",
+    let legacy_present: i64 = sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "c!: i64" FROM sqlite_master WHERE type='table' AND name='groups'"#
     )
     .fetch_one(pool)
     .await?;
@@ -34,74 +34,76 @@ pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
     let mut tx = pool.begin().await?;
 
     // ----- 1. groups -> cards (kind='folder', root) -----
-    let group_rows =
-        sqlx::query("SELECT id, slug, name, sort_order FROM groups ORDER BY sort_order, id")
-            .fetch_all(&mut *tx)
-            .await?;
+    let group_rows = sqlx::query!(
+        r#"SELECT
+              id   AS "id!: i64",
+              slug AS "slug!: String",
+              name AS "name!: String"
+           FROM groups ORDER BY sort_order, id"#
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     let mut group_id_map: HashMap<i64, i64> = HashMap::new();
-    for (idx, row) in group_rows.iter().enumerate() {
-        let old_id: i64 = row.try_get("id")?;
-        let slug: String = row.try_get("slug")?;
-        let name: String = row.try_get("name")?;
+    for (idx, row) in group_rows.into_iter().enumerate() {
         let sort_order = idx as i64;
-        let res = sqlx::query(
+        let res = sqlx::query!(
             "INSERT INTO cards (kind, parent_id, sort_order, name, slug, created_at, updated_at) \
              VALUES ('folder', NULL, ?, ?, ?, ?, ?)",
+            sort_order,
+            row.name,
+            row.slug,
+            now,
+            now
         )
-        .bind(sort_order)
-        .bind(name)
-        .bind(slug)
-        .bind(now)
-        .bind(now)
         .execute(&mut *tx)
         .await?;
-        group_id_map.insert(old_id, res.last_insert_rowid());
+        group_id_map.insert(row.id, res.last_insert_rowid());
     }
     let folder_count = group_id_map.len() as i64;
 
     // ----- 2. items -> cards (kind='item') -----
-    let item_rows = sqlx::query(
-        "SELECT id, group_id, name, description, icon_kind, icon_value, sort_order, created_at, updated_at \
-         FROM items ORDER BY group_id, sort_order, id",
+    let item_rows = sqlx::query!(
+        r#"SELECT
+              id          AS "id!: i64",
+              group_id    AS "group_id?: i64",
+              name        AS "name!: String",
+              description AS "description?: String",
+              icon_kind   AS "icon_kind!: String",
+              icon_value  AS "icon_value!: String",
+              created_at  AS "created_at!: i64",
+              updated_at  AS "updated_at!: i64"
+           FROM items ORDER BY group_id, sort_order, id"#
     )
     .fetch_all(&mut *tx)
     .await?;
 
     // Bucket items by their NEW parent_id (None = root) so we can renumber
     // contiguously starting at the next free slot in each bucket.
-    type LegacyItem = (
-        i64,
-        Option<i64>,
-        String,
-        Option<String>,
-        String,
-        String,
-        i64,
-        i64,
-    );
+    struct LegacyItem {
+        old_id: i64,
+        new_parent: Option<i64>,
+        name: String,
+        description: Option<String>,
+        icon_kind: String,
+        icon_value: String,
+        created_at: i64,
+        updated_at: i64,
+    }
     let mut buckets: BTreeMap<Option<i64>, Vec<usize>> = BTreeMap::new();
     let mut item_records: Vec<LegacyItem> = Vec::with_capacity(item_rows.len());
-    for (idx, row) in item_rows.iter().enumerate() {
-        let old_id: i64 = row.try_get("id")?;
-        let old_group: Option<i64> = row.try_get("group_id")?;
-        let new_parent = old_group.and_then(|g| group_id_map.get(&g).copied());
-        let name: String = row.try_get("name")?;
-        let description: Option<String> = row.try_get("description")?;
-        let icon_kind: String = row.try_get("icon_kind")?;
-        let icon_value: String = row.try_get("icon_value")?;
-        let created_at: i64 = row.try_get("created_at")?;
-        let updated_at: i64 = row.try_get("updated_at")?;
-        item_records.push((
-            old_id,
+    for (idx, row) in item_rows.into_iter().enumerate() {
+        let new_parent = row.group_id.and_then(|g| group_id_map.get(&g).copied());
+        item_records.push(LegacyItem {
+            old_id: row.id,
             new_parent,
-            name,
-            description,
-            icon_kind,
-            icon_value,
-            created_at,
-            updated_at,
-        ));
+            name: row.name,
+            description: row.description,
+            icon_kind: row.icon_kind,
+            icon_value: row.icon_value,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        });
         buckets.entry(new_parent).or_default().push(idx);
     }
 
@@ -111,55 +113,54 @@ pub async fn migrate_if_needed(pool: &SqlitePool) -> Result<()> {
         // start root items after them. Folder buckets start at 0.
         let base_offset = if parent.is_none() { folder_count } else { 0 };
         for (offset, idx) in indices.iter().enumerate() {
-            let (
-                old_id,
-                new_parent,
-                name,
-                description,
-                icon_kind,
-                icon_value,
-                created_at,
-                updated_at,
-            ) = &item_records[*idx];
+            let r = &item_records[*idx];
             let sort_order = base_offset + offset as i64;
-            let res = sqlx::query(
+            let res = sqlx::query!(
                 "INSERT INTO cards (kind, parent_id, sort_order, name, icon_kind, icon_value, description, created_at, updated_at) \
                  VALUES ('item', ?, ?, ?, ?, ?, ?, ?, ?)",
+                r.new_parent,
+                sort_order,
+                r.name,
+                r.icon_kind,
+                r.icon_value,
+                r.description,
+                r.created_at,
+                r.updated_at
             )
-            .bind(*new_parent)
-            .bind(sort_order)
-            .bind(name)
-            .bind(icon_kind)
-            .bind(icon_value)
-            .bind(description.as_deref())
-            .bind(*created_at)
-            .bind(*updated_at)
             .execute(&mut *tx)
             .await?;
-            item_id_map.insert(*old_id, res.last_insert_rowid());
+            item_id_map.insert(r.old_id, res.last_insert_rowid());
         }
     }
 
     // ----- 3. item_links -> card_links -----
-    let link_rows = sqlx::query("SELECT item_id, site_id, url FROM item_links")
-        .fetch_all(&mut *tx)
-        .await?;
+    let link_rows = sqlx::query!(
+        r#"SELECT
+              item_id AS "item_id!: i64",
+              site_id AS "site_id!: i64",
+              url     AS "url!: String"
+           FROM item_links"#
+    )
+    .fetch_all(&mut *tx)
+    .await?;
     for row in link_rows {
-        let item_id: i64 = row.try_get("item_id")?;
-        let site_id: i64 = row.try_get("site_id")?;
-        let url: String = row.try_get("url")?;
-        let card_id = item_id_map.get(&item_id).copied().ok_or_else(|| {
-            AppError::Other(anyhow::anyhow!("orphan item_link for item {item_id}"))
+        let card_id = item_id_map.get(&row.item_id).copied().ok_or_else(|| {
+            AppError::Other(anyhow::anyhow!("orphan item_link for item {}", row.item_id))
         })?;
-        sqlx::query("INSERT INTO card_links (card_id, site_id, url) VALUES (?, ?, ?)")
-            .bind(card_id)
-            .bind(site_id)
-            .bind(url)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            "INSERT INTO card_links (card_id, site_id, url) VALUES (?, ?, ?)",
+            card_id,
+            row.site_id,
+            row.url
+        )
+        .execute(&mut *tx)
+        .await?;
     }
 
     // ----- 4. drop legacy tables -----
+    // DDL keeps the unchecked `query` form: DROP statements would
+    // permanently delete the tables that the typed-macro cache relies
+    // on for compile-time validation of the readers above.
     sqlx::query("DROP TABLE item_links")
         .execute(&mut *tx)
         .await?;

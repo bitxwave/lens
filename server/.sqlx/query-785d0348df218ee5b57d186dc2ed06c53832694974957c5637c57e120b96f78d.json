@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE cards SET parent_id=NULL, sort_order=?, updated_at=? WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "785d0348df218ee5b57d186dc2ed06c53832694974957c5637c57e120b96f78d"
+}

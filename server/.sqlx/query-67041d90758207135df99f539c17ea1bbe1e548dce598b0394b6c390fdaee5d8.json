@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(MAX(sort_order), -1) + 1 AS \"v!: i64\"\n                   FROM cards WHERE parent_id=?",
+  "describe": {
+    "columns": [
+      {
+        "name": "v!: i64",
+        "ordinal": 0,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "67041d90758207135df99f539c17ea1bbe1e548dce598b0394b6c390fdaee5d8"
+}

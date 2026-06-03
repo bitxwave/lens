@@ -1,17 +1,15 @@
 //! `NavRepo` implementation backed by a SQLite pool.
 //!
 //! Plan 6 / Launchpad: groups + items collapsed into a single polymorphic
-//! `cards` table. We use untyped sqlx queries throughout to avoid
-//! coupling the offline `.sqlx/` cache to specific column shapes — the
-//! schema has churned three times since this file was first written,
-//! and every churn forced a `cargo sqlx prepare`. Untyped queries cost
-//! us a bit of compile-time safety but stay stable across migrations.
+//! `cards` table. Queries use the typed `query!` / `query_scalar!` macros
+//! so column-name typos and type drift are caught at compile time, with
+//! the `.sqlx/` directory acting as the offline cache.
 
 use crate::dto::*;
 use crate::error::{AppError, Result};
 use crate::repo::nav::NavRepo;
 use async_trait::async_trait;
-use sqlx::{Row, SqliteExecutor, SqlitePool};
+use sqlx::{SqliteExecutor, SqlitePool};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct SqlxNavRepo {
@@ -86,13 +84,15 @@ impl NavRepo for SqlxNavRepo {
     }
 
     async fn create_site(&self, p: SitePayload) -> Result<Site> {
-        let res = sqlx::query("INSERT INTO sites (value, name, is_default) VALUES (?, ?, ?)")
-            .bind(&p.value)
-            .bind(&p.name)
-            .bind(p.is_default)
-            .execute(&self.pool)
-            .await
-            .map_err(map_unique_violation)?;
+        let res = sqlx::query!(
+            "INSERT INTO sites (value, name, is_default) VALUES (?, ?, ?)",
+            p.value,
+            p.name,
+            p.is_default
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(map_unique_violation)?;
         let id = res.last_insert_rowid();
         self.list_sites()
             .await?
@@ -104,24 +104,18 @@ impl NavRepo for SqlxNavRepo {
     async fn patch_site(&self, id: i64, p: SitePatch) -> Result<Site> {
         let mut tx = self.pool.begin().await?;
         if let Some(v) = p.value {
-            sqlx::query("UPDATE sites SET value=? WHERE id=?")
-                .bind(v)
-                .bind(id)
+            sqlx::query!("UPDATE sites SET value=? WHERE id=?", v, id)
                 .execute(&mut *tx)
                 .await
                 .map_err(map_unique_violation)?;
         }
         if let Some(v) = p.name {
-            sqlx::query("UPDATE sites SET name=? WHERE id=?")
-                .bind(v)
-                .bind(id)
+            sqlx::query!("UPDATE sites SET name=? WHERE id=?", v, id)
                 .execute(&mut *tx)
                 .await?;
         }
         if let Some(v) = p.is_default {
-            sqlx::query("UPDATE sites SET is_default=? WHERE id=?")
-                .bind(v)
-                .bind(id)
+            sqlx::query!("UPDATE sites SET is_default=? WHERE id=?", v, id)
                 .execute(&mut *tx)
                 .await?;
         }
@@ -134,17 +128,18 @@ impl NavRepo for SqlxNavRepo {
     }
 
     async fn delete_site(&self, id: i64) -> Result<()> {
-        let referenced: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM card_links WHERE site_id=?")
-            .bind(id)
-            .fetch_one(&self.pool)
-            .await?;
+        let referenced: i64 = sqlx::query_scalar!(
+            r#"SELECT COUNT(*) AS "c!: i64" FROM card_links WHERE site_id=?"#,
+            id
+        )
+        .fetch_one(&self.pool)
+        .await?;
         if referenced > 0 {
             return Err(AppError::Conflict(format!(
                 "site is referenced by {referenced} card link(s); remove them first"
             )));
         }
-        let res = sqlx::query("DELETE FROM sites WHERE id=?")
-            .bind(id)
+        let res = sqlx::query!("DELETE FROM sites WHERE id=?", id)
             .execute(&self.pool)
             .await?;
         if res.rows_affected() == 0 {
@@ -156,11 +151,13 @@ impl NavRepo for SqlxNavRepo {
     async fn reorder_sites(&self, entries: Vec<SiteReorderEntry>) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         for e in entries {
-            sqlx::query("UPDATE sites SET sort_order=? WHERE id=?")
-                .bind(e.sort_order)
-                .bind(e.id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE sites SET sort_order=? WHERE id=?",
+                e.sort_order,
+                e.id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         tx.commit().await?;
         Ok(())
@@ -191,33 +188,36 @@ impl NavRepo for SqlxNavRepo {
 
         let res = match p.kind {
             CardKind::Folder => {
-                sqlx::query(
+                let slug = p.slug.as_deref();
+                sqlx::query!(
                     "INSERT INTO cards (kind, parent_id, sort_order, name, slug, created_at, updated_at) \
                      VALUES ('folder', NULL, ?, ?, ?, ?, ?)",
+                    next_slot,
+                    p.name,
+                    slug,
+                    now,
+                    now
                 )
-                .bind(next_slot)
-                .bind(&p.name)
-                .bind(p.slug.as_deref())
-                .bind(now)
-                .bind(now)
                 .execute(&mut *tx)
                 .await
                 .map_err(map_unique_violation)?
             }
             CardKind::Item => {
                 let kind_str = icon_kind_str(p.icon_kind.expect("validated"));
-                sqlx::query(
+                let icon_value = p.icon_value.as_deref();
+                let description = p.description.as_deref();
+                sqlx::query!(
                     "INSERT INTO cards (kind, parent_id, sort_order, name, icon_kind, icon_value, description, created_at, updated_at) \
                      VALUES ('item', ?, ?, ?, ?, ?, ?, ?, ?)",
+                    parent_id,
+                    next_slot,
+                    p.name,
+                    kind_str,
+                    icon_value,
+                    description,
+                    now,
+                    now
                 )
-                .bind(parent_id)
-                .bind(next_slot)
-                .bind(&p.name)
-                .bind(kind_str)
-                .bind(p.icon_value.as_deref())
-                .bind(p.description.as_deref())
-                .bind(now)
-                .bind(now)
                 .execute(&mut *tx)
                 .await
                 .map_err(map_unique_violation)?
@@ -238,33 +238,38 @@ impl NavRepo for SqlxNavRepo {
         // Fetch current row — we need both `kind` (to validate field
         // applicability) and `parent_id` (so we can dissolve the old
         // folder later if it ends up with ≤1 children).
-        let row: (String, Option<i64>) =
-            sqlx::query_as("SELECT kind, parent_id FROM cards WHERE id=?")
-                .bind(id)
-                .fetch_optional(&mut *tx)
-                .await?
-                .ok_or(AppError::NotFound)?;
-        let kind_str = row.0;
-        let old_parent = row.1;
+        let row = sqlx::query!(
+            r#"SELECT kind AS "kind!: String", parent_id FROM cards WHERE id=?"#,
+            id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let kind_str = row.kind;
+        let old_parent = row.parent_id;
 
         if let Some(v) = p.name {
-            sqlx::query("UPDATE cards SET name=?, updated_at=? WHERE id=?")
-                .bind(v)
-                .bind(now)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE cards SET name=?, updated_at=? WHERE id=?",
+                v,
+                now,
+                id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         if let Some(v) = p.slug {
             if kind_str != "folder" {
                 return Err(AppError::Validation("slug only valid on folders".into()));
             }
-            sqlx::query("UPDATE cards SET slug=?, updated_at=? WHERE id=?")
-                .bind(v)
-                .bind(now)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE cards SET slug=?, updated_at=? WHERE id=?",
+                v,
+                now,
+                id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         if let Some(v) = p.parent_id {
             if kind_str == "folder" && v.is_some() {
@@ -275,24 +280,29 @@ impl NavRepo for SqlxNavRepo {
             }
             // Append to the new bucket's tail.
             let new_slot = next_sort_order(&mut *tx, v).await?;
-            sqlx::query("UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?")
-                .bind(v)
-                .bind(new_slot)
-                .bind(now)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?",
+                v,
+                new_slot,
+                now,
+                id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         if let Some(v) = p.icon_kind {
             if kind_str != "item" {
                 return Err(AppError::Validation("icon_kind only valid on items".into()));
             }
-            sqlx::query("UPDATE cards SET icon_kind=?, updated_at=? WHERE id=?")
-                .bind(icon_kind_str(v))
-                .bind(now)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            let kind_str_v = icon_kind_str(v);
+            sqlx::query!(
+                "UPDATE cards SET icon_kind=?, updated_at=? WHERE id=?",
+                kind_str_v,
+                now,
+                id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         if let Some(v) = p.icon_value {
             if kind_str != "item" {
@@ -300,27 +310,30 @@ impl NavRepo for SqlxNavRepo {
                     "icon_value only valid on items".into(),
                 ));
             }
-            sqlx::query("UPDATE cards SET icon_value=?, updated_at=? WHERE id=?")
-                .bind(v)
-                .bind(now)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE cards SET icon_value=?, updated_at=? WHERE id=?",
+                v,
+                now,
+                id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         if let Some(v) = p.description {
-            sqlx::query("UPDATE cards SET description=?, updated_at=? WHERE id=?")
-                .bind(v)
-                .bind(now)
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE cards SET description=?, updated_at=? WHERE id=?",
+                v,
+                now,
+                id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
         if let Some(links) = p.links {
             if kind_str != "item" {
                 return Err(AppError::Validation("links only valid on items".into()));
             }
-            sqlx::query("DELETE FROM card_links WHERE card_id=?")
-                .bind(id)
+            sqlx::query!("DELETE FROM card_links WHERE card_id=?", id)
                 .execute(&mut *tx)
                 .await?;
             insert_links(&mut tx, id, &links).await?;
@@ -344,23 +357,28 @@ impl NavRepo for SqlxNavRepo {
 
     async fn delete_card(&self, id: i64) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        let row: Option<(String, Option<i64>)> =
-            sqlx::query_as("SELECT kind, parent_id FROM cards WHERE id=?")
-                .bind(id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let (kind, old_parent) = row.ok_or(AppError::NotFound)?;
+        let row = sqlx::query!(
+            r#"SELECT kind AS "kind!: String", parent_id FROM cards WHERE id=?"#,
+            id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let kind = row.kind;
+        let old_parent = row.parent_id;
+
         if kind == "folder" {
             // Release children: parent_id = NULL, appended at end of root bucket.
-            let mut next_root: i64 = sqlx::query_scalar(
-                "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM cards WHERE parent_id IS NULL",
+            let mut next_root: i64 = sqlx::query_scalar!(
+                r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "v!: i64"
+                   FROM cards WHERE parent_id IS NULL"#
             )
             .fetch_one(&mut *tx)
             .await?;
-            let child_ids: Vec<i64> = sqlx::query_scalar(
-                "SELECT id FROM cards WHERE parent_id=? ORDER BY sort_order, id",
+            let child_ids: Vec<i64> = sqlx::query_scalar!(
+                r#"SELECT id AS "id!: i64" FROM cards WHERE parent_id=? ORDER BY sort_order, id"#,
+                id
             )
-            .bind(id)
             .fetch_all(&mut *tx)
             .await?;
             // Move children OUT of the folder before we delete it. To
@@ -370,23 +388,22 @@ impl NavRepo for SqlxNavRepo {
             // settle them into their final root slot.
             for (offset, cid) in child_ids.iter().enumerate() {
                 let staging = -1_i64 - offset as i64;
-                sqlx::query("UPDATE cards SET parent_id=NULL, sort_order=? WHERE id=?")
-                    .bind(staging)
-                    .bind(cid)
-                    .execute(&mut *tx)
-                    .await?;
+                sqlx::query!(
+                    "UPDATE cards SET parent_id=NULL, sort_order=? WHERE id=?",
+                    staging,
+                    cid
+                )
+                .execute(&mut *tx)
+                .await?;
             }
             for cid in &child_ids {
-                sqlx::query("UPDATE cards SET sort_order=? WHERE id=?")
-                    .bind(next_root)
-                    .bind(cid)
+                sqlx::query!("UPDATE cards SET sort_order=? WHERE id=?", next_root, cid)
                     .execute(&mut *tx)
                     .await?;
                 next_root += 1;
             }
         }
-        sqlx::query("DELETE FROM cards WHERE id=?")
-            .bind(id)
+        sqlx::query!("DELETE FROM cards WHERE id=?", id)
             .execute(&mut *tx)
             .await?;
 
@@ -444,8 +461,7 @@ impl NavRepo for SqlxNavRepo {
         let mut maybe_dissolve: BTreeSet<i64> = BTreeSet::new();
         for e in &entries {
             let old_parent: Option<i64> =
-                sqlx::query_scalar("SELECT parent_id FROM cards WHERE id=?")
-                    .bind(e.id)
+                sqlx::query_scalar!("SELECT parent_id FROM cards WHERE id=?", e.id)
                     .fetch_optional(&mut *tx)
                     .await?
                     .flatten();
@@ -476,13 +492,15 @@ impl NavRepo for SqlxNavRepo {
         // they can't collide with any pre-existing data.
         for (idx, e) in entries.iter().enumerate() {
             let staging = -(1_i64 << 20) - idx as i64;
-            sqlx::query("UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?")
-                .bind(e.parent_id)
-                .bind(staging)
-                .bind(now)
-                .bind(e.id)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?",
+                e.parent_id,
+                staging,
+                now,
+                e.id
+            )
+            .execute(&mut *tx)
+            .await?;
         }
 
         // Step 2: for each affected bucket, compact 0..N. Build the
@@ -499,16 +517,16 @@ impl NavRepo for SqlxNavRepo {
             let listed_ids: BTreeSet<i64> = listed.iter().map(|e| e.id).collect();
             let other_ids: Vec<i64> = match parent {
                 Some(p) => {
-                    sqlx::query_scalar(
-                        "SELECT id FROM cards WHERE parent_id=? ORDER BY sort_order, id",
+                    sqlx::query_scalar!(
+                        r#"SELECT id AS "id!: i64" FROM cards WHERE parent_id=? ORDER BY sort_order, id"#,
+                        p
                     )
-                    .bind(*p)
                     .fetch_all(&mut *tx)
                     .await?
                 }
                 None => {
-                    sqlx::query_scalar(
-                        "SELECT id FROM cards WHERE parent_id IS NULL ORDER BY sort_order, id",
+                    sqlx::query_scalar!(
+                        r#"SELECT id AS "id!: i64" FROM cards WHERE parent_id IS NULL ORDER BY sort_order, id"#
                     )
                     .fetch_all(&mut *tx)
                     .await?
@@ -526,20 +544,21 @@ impl NavRepo for SqlxNavRepo {
 
             for (idx, id) in final_order.iter().enumerate() {
                 let staging = -1_i64 - idx as i64;
-                sqlx::query("UPDATE cards SET sort_order=? WHERE id=?")
-                    .bind(staging)
-                    .bind(id)
+                sqlx::query!("UPDATE cards SET sort_order=? WHERE id=?", staging, id)
                     .execute(&mut *tx)
                     .await?;
             }
             for (idx, id) in final_order.iter().enumerate() {
-                sqlx::query("UPDATE cards SET sort_order=?, updated_at=? WHERE id=?")
-                    .bind(idx as i64)
-                    .bind(now)
-                    .bind(id)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(map_unique_violation)?;
+                let final_slot = idx as i64;
+                sqlx::query!(
+                    "UPDATE cards SET sort_order=?, updated_at=? WHERE id=?",
+                    final_slot,
+                    now,
+                    id
+                )
+                .execute(&mut *tx)
+                .await
+                .map_err(map_unique_violation)?;
             }
         }
 
@@ -557,21 +576,29 @@ impl NavRepo for SqlxNavRepo {
         let mut tx = self.pool.begin().await?;
 
         // Both must be items at root.
-        let target_row: Option<(String, Option<i64>, i64)> =
-            sqlx::query_as("SELECT kind, parent_id, sort_order FROM cards WHERE id=?")
-                .bind(p.target_item_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let (target_kind, target_parent, target_sort) = target_row.ok_or(AppError::NotFound)?;
+        let target_row = sqlx::query!(
+            r#"SELECT kind AS "kind!: String", parent_id, sort_order AS "sort_order!: i64"
+               FROM cards WHERE id=?"#,
+            p.target_item_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let target_kind = target_row.kind;
+        let target_parent = target_row.parent_id;
+        let target_sort = target_row.sort_order;
         if target_kind != "item" {
             return Err(AppError::Validation("target must be an item".into()));
         }
-        let source_row: Option<(String, Option<i64>)> =
-            sqlx::query_as("SELECT kind, parent_id FROM cards WHERE id=?")
-                .bind(p.source_item_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let (source_kind, source_parent) = source_row.ok_or(AppError::NotFound)?;
+        let source_row = sqlx::query!(
+            r#"SELECT kind AS "kind!: String", parent_id FROM cards WHERE id=?"#,
+            p.source_item_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let source_kind = source_row.kind;
+        let source_parent = source_row.parent_id;
         if source_kind != "item" {
             return Err(AppError::Validation("source must be an item".into()));
         }
@@ -583,45 +610,53 @@ impl NavRepo for SqlxNavRepo {
         }
 
         // Stage target away to free its slot.
-        sqlx::query("UPDATE cards SET sort_order=-100000 WHERE id=?")
-            .bind(p.target_item_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            "UPDATE cards SET sort_order=-100000 WHERE id=?",
+            p.target_item_id
+        )
+        .execute(&mut *tx)
+        .await?;
 
         // Create the folder at the target's old slot.
         let slug = match p.slug {
             Some(s) => s,
             None => format!("folder-{now}"),
         };
-        let folder_res = sqlx::query(
+        let folder_res = sqlx::query!(
             "INSERT INTO cards (kind, parent_id, sort_order, name, slug, created_at, updated_at) \
              VALUES ('folder', NULL, ?, ?, ?, ?, ?)",
+            target_sort,
+            p.name,
+            slug,
+            now,
+            now
         )
-        .bind(target_sort)
-        .bind(&p.name)
-        .bind(&slug)
-        .bind(now)
-        .bind(now)
         .execute(&mut *tx)
         .await
         .map_err(map_unique_violation)?;
         let folder_id = folder_res.last_insert_rowid();
 
         // Move source + target into the folder at slots 0 and 1.
-        sqlx::query("UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?")
-            .bind(folder_id)
-            .bind(0_i64)
-            .bind(now)
-            .bind(p.source_item_id)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?")
-            .bind(folder_id)
-            .bind(1_i64)
-            .bind(now)
-            .bind(p.target_item_id)
-            .execute(&mut *tx)
-            .await?;
+        let zero = 0_i64;
+        sqlx::query!(
+            "UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?",
+            folder_id,
+            zero,
+            now,
+            p.source_item_id
+        )
+        .execute(&mut *tx)
+        .await?;
+        let one = 1_i64;
+        sqlx::query!(
+            "UPDATE cards SET parent_id=?, sort_order=?, updated_at=? WHERE id=?",
+            folder_id,
+            one,
+            now,
+            p.target_item_id
+        )
+        .execute(&mut *tx)
+        .await?;
 
         // The source's old parent (if it was inside another folder)
         // might now be down to ≤1 children — dissolve it.
@@ -650,48 +685,55 @@ async fn dissolve_singleton_folders(
         if !seen.insert(fid) {
             continue;
         }
-        let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM cards WHERE id=?")
-            .bind(fid)
+        let kind: Option<String> = sqlx::query_scalar!("SELECT kind FROM cards WHERE id=?", fid)
             .fetch_optional(&mut *conn)
             .await?;
         if kind.as_deref() != Some("folder") {
             continue;
         }
-        let child_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cards WHERE parent_id=?")
-            .bind(fid)
-            .fetch_one(&mut *conn)
-            .await?;
+        let child_count: i64 = sqlx::query_scalar!(
+            r#"SELECT COUNT(*) AS "c!: i64" FROM cards WHERE parent_id=?"#,
+            fid
+        )
+        .fetch_one(&mut *conn)
+        .await?;
         if child_count > 1 {
             continue;
         }
         if child_count == 1 {
             // Move the lone child to the end of the root bucket. Stage
             // through a far-negative slot so we never collide.
-            let child_id: i64 =
-                sqlx::query_scalar("SELECT id FROM cards WHERE parent_id=? LIMIT 1")
-                    .bind(fid)
-                    .fetch_one(&mut *conn)
-                    .await?;
-            let next_root: i64 = sqlx::query_scalar(
-                "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM cards WHERE parent_id IS NULL",
+            let child_id: i64 = sqlx::query_scalar!(
+                r#"SELECT id AS "id!: i64" FROM cards WHERE parent_id=? LIMIT 1"#,
+                fid
             )
             .fetch_one(&mut *conn)
             .await?;
-            sqlx::query("UPDATE cards SET parent_id=NULL, sort_order=?, updated_at=? WHERE id=?")
-                .bind(-(1_i64 << 30))
-                .bind(now)
-                .bind(child_id)
-                .execute(&mut *conn)
-                .await?;
-            sqlx::query("UPDATE cards SET sort_order=?, updated_at=? WHERE id=?")
-                .bind(next_root)
-                .bind(now)
-                .bind(child_id)
-                .execute(&mut *conn)
-                .await?;
+            let next_root: i64 = sqlx::query_scalar!(
+                r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "v!: i64"
+                   FROM cards WHERE parent_id IS NULL"#
+            )
+            .fetch_one(&mut *conn)
+            .await?;
+            let staging = -(1_i64 << 30);
+            sqlx::query!(
+                "UPDATE cards SET parent_id=NULL, sort_order=?, updated_at=? WHERE id=?",
+                staging,
+                now,
+                child_id
+            )
+            .execute(&mut *conn)
+            .await?;
+            sqlx::query!(
+                "UPDATE cards SET sort_order=?, updated_at=? WHERE id=?",
+                next_root,
+                now,
+                child_id
+            )
+            .execute(&mut *conn)
+            .await?;
         }
-        sqlx::query("DELETE FROM cards WHERE id=?")
-            .bind(fid)
+        sqlx::query!("DELETE FROM cards WHERE id=?", fid)
             .execute(&mut *conn)
             .await?;
     }
@@ -702,8 +744,7 @@ async fn ensure_parent_is_folder<'e, E>(executor: E, parent_id: i64) -> Result<(
 where
     E: SqliteExecutor<'e>,
 {
-    let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM cards WHERE id=?")
-        .bind(parent_id)
+    let kind: Option<String> = sqlx::query_scalar!("SELECT kind FROM cards WHERE id=?", parent_id)
         .fetch_optional(executor)
         .await?;
     match kind.as_deref() {
@@ -719,16 +760,18 @@ where
 {
     let next: i64 = match parent_id {
         Some(p) => {
-            sqlx::query_scalar(
-                "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM cards WHERE parent_id=?",
+            sqlx::query_scalar!(
+                r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "v!: i64"
+                   FROM cards WHERE parent_id=?"#,
+                p
             )
-            .bind(p)
             .fetch_one(executor)
             .await?
         }
         None => {
-            sqlx::query_scalar(
-                "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM cards WHERE parent_id IS NULL",
+            sqlx::query_scalar!(
+                r#"SELECT COALESCE(MAX(sort_order), -1) + 1 AS "v!: i64"
+                   FROM cards WHERE parent_id IS NULL"#
             )
             .fetch_one(executor)
             .await?
@@ -743,13 +786,13 @@ async fn insert_links(
     links: &std::collections::BTreeMap<String, String>,
 ) -> Result<()> {
     for (site_value, url) in links {
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO card_links (card_id, site_id, url) \
              SELECT ?, sites.id, ? FROM sites WHERE sites.value = ?",
+            card_id,
+            url,
+            site_value
         )
-        .bind(card_id)
-        .bind(url)
-        .bind(site_value)
         .execute(&mut *conn)
         .await?;
     }
@@ -789,27 +832,46 @@ fn validate_payload(p: &CardPayload) -> Result<()> {
 }
 
 async fn list_sites_inner(pool: &SqlitePool) -> Result<Vec<Site>> {
-    let rows = sqlx::query(
-        "SELECT id, value, name, sort_order, is_default FROM sites ORDER BY sort_order, id",
+    let rows = sqlx::query!(
+        r#"SELECT
+              id           AS "id!: i64",
+              value        AS "value!: String",
+              name         AS "name!: String",
+              sort_order   AS "sort_order!: i64",
+              is_default   AS "is_default!: i64"
+           FROM sites
+           ORDER BY sort_order, id"#
     )
     .fetch_all(pool)
     .await?;
     Ok(rows
         .into_iter()
         .map(|r| Site {
-            id: r.get::<i64, _>("id"),
-            value: r.get::<String, _>("value"),
-            name: r.get::<String, _>("name"),
-            sort_order: r.get::<i64, _>("sort_order"),
-            is_default: r.get::<i64, _>("is_default") != 0,
+            id: r.id,
+            value: r.value,
+            name: r.name,
+            sort_order: r.sort_order,
+            is_default: r.is_default != 0,
         })
         .collect())
 }
 
 async fn list_cards_inner(pool: &SqlitePool) -> Result<Vec<Card>> {
-    let card_rows = sqlx::query(
-        "SELECT id, kind, parent_id, sort_order, name, slug, icon_kind, icon_value, description, created_at, updated_at \
-         FROM cards ORDER BY parent_id NULLS FIRST, sort_order, id",
+    let card_rows = sqlx::query!(
+        r#"SELECT
+              id          AS "id!: i64",
+              kind        AS "kind!: String",
+              parent_id   AS "parent_id?: i64",
+              sort_order  AS "sort_order!: i64",
+              name        AS "name!: String",
+              slug        AS "slug?: String",
+              icon_kind   AS "icon_kind?: String",
+              icon_value  AS "icon_value?: String",
+              description AS "description?: String",
+              created_at  AS "created_at!: i64",
+              updated_at  AS "updated_at!: i64"
+           FROM cards
+           ORDER BY parent_id NULLS FIRST, sort_order, id"#
     )
     .fetch_all(pool)
     .await?;
@@ -817,30 +879,31 @@ async fn list_cards_inner(pool: &SqlitePool) -> Result<Vec<Card>> {
     let mut cards: Vec<Card> = card_rows
         .into_iter()
         .map(|r| {
-            let kind_s: String = r.get("kind");
-            let kind = parse_card_kind(&kind_s)?;
-            let icon_kind_s: Option<String> = r.get("icon_kind");
-            let icon_kind = icon_kind_s.as_deref().map(parse_icon_kind).transpose()?;
+            let kind = parse_card_kind(&r.kind)?;
+            let icon_kind = r.icon_kind.as_deref().map(parse_icon_kind).transpose()?;
             Ok(Card {
-                id: r.get::<i64, _>("id"),
+                id: r.id,
                 kind,
-                parent_id: r.get::<Option<i64>, _>("parent_id"),
-                sort_order: r.get::<i64, _>("sort_order"),
-                name: r.get::<String, _>("name"),
-                slug: r.get::<Option<String>, _>("slug"),
+                parent_id: r.parent_id,
+                sort_order: r.sort_order,
+                name: r.name,
+                slug: r.slug,
                 icon_kind,
-                icon_value: r.get::<Option<String>, _>("icon_value"),
-                description: r.get::<Option<String>, _>("description"),
+                icon_value: r.icon_value,
+                description: r.description,
                 links: BTreeMap::new(),
-                created_at: r.get::<i64, _>("created_at"),
-                updated_at: r.get::<i64, _>("updated_at"),
+                created_at: r.created_at,
+                updated_at: r.updated_at,
             })
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let link_rows = sqlx::query(
-        "SELECT cl.card_id, s.value, cl.url \
-         FROM card_links cl JOIN sites s ON s.id = cl.site_id",
+    let link_rows = sqlx::query!(
+        r#"SELECT cl.card_id AS "card_id!: i64",
+                  s.value    AS "value!: String",
+                  cl.url     AS "url!: String"
+           FROM card_links cl
+           JOIN sites s ON s.id = cl.site_id"#
     )
     .fetch_all(pool)
     .await?;
@@ -850,11 +913,8 @@ async fn list_cards_inner(pool: &SqlitePool) -> Result<Vec<Card>> {
         by_id.insert(c.id, idx);
     }
     for r in link_rows {
-        let cid: i64 = r.get("card_id");
-        let value: String = r.get("value");
-        let url: String = r.get("url");
-        if let Some(&idx) = by_id.get(&cid) {
-            cards[idx].links.insert(value, url);
+        if let Some(&idx) = by_id.get(&r.card_id) {
+            cards[idx].links.insert(r.value, r.url);
         }
     }
     Ok(cards)
