@@ -60,26 +60,19 @@ async fn login(
     if !password::verify(&body.password, &hashed)? {
         return Err(AppError::Unauthenticated);
     }
-    session
-        .insert(SESSION_KEY_AUTHED, true)
-        .await
-        .map_err(|e| AppError::Other(anyhow::anyhow!(e)))?;
+    session.insert(SESSION_KEY_AUTHED, true).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn logout(session: Session) -> Result<StatusCode> {
-    session
-        .flush()
-        .await
-        .map_err(|e| AppError::Other(anyhow::anyhow!(e)))?;
+    session.flush().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 async fn me(session: Session) -> Result<Json<serde_json::Value>> {
     let authed = session
         .get::<bool>(SESSION_KEY_AUTHED)
-        .await
-        .map_err(|e| AppError::Other(anyhow::anyhow!(e)))?
+        .await?
         .unwrap_or(false);
     Ok(Json(json!({ "authenticated": authed })))
 }

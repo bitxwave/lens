@@ -39,6 +39,9 @@ pub enum AppError {
     Json(#[from] serde_json::Error),
 
     #[error(transparent)]
+    Session(#[from] tower_sessions::session::Error),
+
+    #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
