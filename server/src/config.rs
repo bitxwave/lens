@@ -24,6 +24,11 @@ pub struct Settings {
     /// `tracing-subscriber` env filter, e.g. "info,sqlx=warn".
     #[serde(default = "default_log")]
     pub rust_log: String,
+    /// Favicon provider URL template; `{host}` is substituted at fetch
+    /// time. Defaults to Google s2. Override on intranet deployments
+    /// where Google is unreachable (e.g. DuckDuckGo's `ip3` endpoint).
+    #[serde(default = "default_favicon_provider")]
+    pub favicon_provider_url: String,
 }
 
 fn default_port() -> u16 {
@@ -37,6 +42,9 @@ fn default_static_dir() -> PathBuf {
 }
 fn default_log() -> String {
     "info,sqlx=warn,tower_http=info".into()
+}
+fn default_favicon_provider() -> String {
+    crate::services::favicon::DEFAULT_PROVIDER_URL.into()
 }
 
 impl Settings {
@@ -67,11 +75,13 @@ mod tests {
         std::env::remove_var("BOOTSTRAP_ADMIN_PASSWORD");
         std::env::remove_var("SECURE_COOKIES");
         std::env::remove_var("RUST_LOG");
+        std::env::remove_var("FAVICON_PROVIDER_URL");
         let s = Settings::load().unwrap();
         assert_eq!(s.port, 8080);
         assert!(s.data_dir.ends_with("dev-data"));
         assert!(!s.secure_cookies);
         assert!(s.bootstrap_admin_password.is_none());
+        assert!(s.favicon_provider_url.contains("{host}"));
     }
 
     #[test]
@@ -83,6 +93,7 @@ mod tests {
             bootstrap_admin_password: None,
             secure_cookies: false,
             rust_log: "info".into(),
+            favicon_provider_url: default_favicon_provider(),
         };
         assert_eq!(s.db_url(), "sqlite:///tmp/x/data.db?mode=rwc");
     }

@@ -7,7 +7,7 @@ use axum::{
 
 use crate::auth::RequireAuth;
 use crate::dto::{AutoFolderPayload, Card, CardPatch, CardPayload, ReorderEntry};
-use crate::error::Result;
+use crate::error::{validate, Result};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -23,6 +23,7 @@ async fn create(
     State(s): State<AppState>,
     Json(body): Json<CardPayload>,
 ) -> Result<(StatusCode, Json<Card>)> {
+    validate(&body)?;
     let card = s.nav.create_card(body).await?;
     Ok((StatusCode::CREATED, Json(card)))
 }
@@ -33,6 +34,7 @@ async fn update(
     Path(id): Path<i64>,
     Json(body): Json<CardPatch>,
 ) -> Result<Json<Card>> {
+    validate(&body)?;
     Ok(Json(s.nav.patch_card(id, body).await?))
 }
 
@@ -59,6 +61,7 @@ async fn auto_folder(
     State(s): State<AppState>,
     Json(body): Json<AutoFolderPayload>,
 ) -> Result<(StatusCode, Json<Card>)> {
+    validate(&body)?;
     let folder = s.nav.auto_folder(body).await?;
     Ok((StatusCode::CREATED, Json(folder)))
 }

@@ -103,6 +103,35 @@ async fn nav_bundle_includes_cards_array() {
 }
 
 #[tokio::test]
+async fn create_card_rejects_empty_name_with_422() {
+    let server = auth_server().await;
+    let res = server
+        .post("/api/cards")
+        .json(&serde_json::json!({
+            "kind": "item",
+            "name": "",
+            "iconKind": "asset",
+            "iconValue": "x.png"
+        }))
+        .await;
+    res.assert_status(axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn create_folder_rejects_uppercase_slug_with_422() {
+    let server = auth_server().await;
+    let res = server
+        .post("/api/cards")
+        .json(&serde_json::json!({
+            "kind": "folder",
+            "name": "Tools",
+            "slug": "Bad-Slug"
+        }))
+        .await;
+    res.assert_status(axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
 async fn legacy_routes_are_unreachable() {
     // The /api/groups and /api/items families are removed in Plan 6.
     // Axum may answer with 404 (route gone) or 405 (catch-all method

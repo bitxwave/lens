@@ -42,7 +42,12 @@ async fn main() -> anyhow::Result<()> {
 
     lens::services::migration::seed_if_empty(nav.clone() as _, cfg.clone() as _).await?;
 
-    let state = AppState::new(nav, cfg, settings.data_dir.clone());
+    let state = AppState::with_favicon_provider(
+        nav,
+        cfg,
+        settings.data_dir.clone(),
+        settings.favicon_provider_url.clone(),
+    );
     let app = build_app(
         state,
         session_layer(pool.clone(), settings.secure_cookies),

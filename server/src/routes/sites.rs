@@ -7,7 +7,7 @@ use axum::{
 
 use crate::auth::RequireAuth;
 use crate::dto::{Site, SitePatch, SitePayload, SiteReorderEntry};
-use crate::error::Result;
+use crate::error::{validate, Result};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -22,6 +22,7 @@ async fn create(
     State(s): State<AppState>,
     Json(body): Json<SitePayload>,
 ) -> Result<(StatusCode, Json<Site>)> {
+    validate(&body)?;
     Ok((StatusCode::CREATED, Json(s.nav.create_site(body).await?)))
 }
 async fn update(
@@ -30,6 +31,7 @@ async fn update(
     Path(id): Path<i64>,
     Json(body): Json<SitePatch>,
 ) -> Result<Json<Site>> {
+    validate(&body)?;
     Ok(Json(s.nav.patch_site(id, body).await?))
 }
 async fn remove(

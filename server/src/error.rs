@@ -95,6 +95,14 @@ impl IntoResponse for AppError {
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
+/// Run `validator::Validate` on a request payload and turn any failure
+/// into `AppError::Validation`. Centralised so handlers stay one-liner.
+pub fn validate<T: validator::Validate>(payload: &T) -> Result<()> {
+    payload
+        .validate()
+        .map_err(|e| AppError::Validation(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
