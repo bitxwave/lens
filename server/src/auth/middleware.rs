@@ -1,4 +1,3 @@
-use axum::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use tower_sessions::Session;
@@ -8,7 +7,6 @@ use crate::error::AppError;
 
 pub struct RequireAuth;
 
-#[async_trait]
 impl<S> FromRequestParts<S> for RequireAuth
 where
     S: Send + Sync,

@@ -6,7 +6,7 @@
       {
         "name": "id!: i64",
         "ordinal": 0,
-        "type_info": "Int64"
+        "type_info": "Integer"
       },
       {
         "name": "value!: String",
@@ -21,12 +21,12 @@
       {
         "name": "sort_order!: i64",
         "ordinal": 3,
-        "type_info": "Int64"
+        "type_info": "Integer"
       },
       {
         "name": "is_default!: i64",
         "ordinal": 4,
-        "type_info": "Int64"
+        "type_info": "Integer"
       }
     ],
     "parameters": {

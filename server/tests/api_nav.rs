@@ -4,7 +4,7 @@ use lens::app::build_app_for_tests;
 #[tokio::test]
 async fn nav_endpoint_returns_empty_bundle_initially() {
     let app = build_app_for_tests().await.unwrap();
-    let server = TestServer::new(app).unwrap();
+    let server = TestServer::new(app);
     let res = server.get("/api/nav").await;
     res.assert_status_ok();
     let body: serde_json::Value = res.json();

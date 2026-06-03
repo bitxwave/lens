@@ -6,7 +6,7 @@
       {
         "name": "id!: i64",
         "ordinal": 0,
-        "type_info": "Int64"
+        "type_info": "Integer"
       },
       {
         "name": "kind!: String",
@@ -16,12 +16,12 @@
       {
         "name": "parent_id?: i64",
         "ordinal": 2,
-        "type_info": "Int64"
+        "type_info": "Integer"
       },
       {
         "name": "sort_order!: i64",
         "ordinal": 3,
-        "type_info": "Int64"
+        "type_info": "Integer"
       },
       {
         "name": "name!: String",
@@ -51,12 +51,12 @@
       {
         "name": "created_at!: i64",
         "ordinal": 9,
-        "type_info": "Int64"
+        "type_info": "Integer"
       },
       {
         "name": "updated_at!: i64",
         "ordinal": 10,
-        "type_info": "Int64"
+        "type_info": "Integer"
       }
     ],
     "parameters": {

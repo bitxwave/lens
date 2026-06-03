@@ -26,8 +26,8 @@ async fn auth_server() -> TestServer {
     let state = AppState::new(nav, cfg, dir.clone());
     let app = build_app(state, session_layer(pool, false), dir)
         .into_make_service_with_connect_info::<SocketAddr>();
-    let mut server = TestServer::new(app).unwrap();
-    server.do_save_cookies();
+    let mut server = TestServer::new(app);
+    server.save_cookies();
     server
         .post("/api/auth/login")
         .json(&serde_json::json!({"password": "pw"}))

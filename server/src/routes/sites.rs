@@ -14,7 +14,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sites", post(create))
         .route("/sites/reorder", post(reorder))
-        .route("/sites/:id", patch(update).delete(remove))
+        .route("/sites/{id}", patch(update).delete(remove))
 }
 
 async fn create(

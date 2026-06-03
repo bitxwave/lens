@@ -15,7 +15,7 @@ pub fn router() -> Router<AppState> {
         .route("/cards", post(create))
         .route("/cards/reorder", post(reorder))
         .route("/cards/auto-folder", post(auto_folder))
-        .route("/cards/:id", patch(update).delete(remove))
+        .route("/cards/{id}", patch(update).delete(remove))
 }
 
 async fn create(

@@ -9,7 +9,7 @@ use crate::dto::*;
 use crate::error::{AppError, Result};
 use crate::repo::nav::NavRepo;
 use async_trait::async_trait;
-use sqlx::{SqliteExecutor, SqlitePool};
+use sqlx::{QueryBuilder, Sqlite, SqliteExecutor, SqlitePool};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct SqlxNavRepo {
@@ -538,28 +538,55 @@ impl NavRepo for SqlxNavRepo {
                 .collect();
 
             // Final order: listed (in requested order) followed by others.
-            // Stage every row to a fresh negative slot first, then write
-            // the contiguous 0..N values, so we never collide.
+            // Stage every row to a fresh negative slot first so the
+            // (parent_id, sort_order) UNIQUE index never trips during
+            // the apply step. SQLite enforces UNIQUE row-by-row inside
+            // a single UPDATE; a CASE WHEN that swaps slots A↔B would
+            // still collide momentarily, so the negative-stage parking
+            // is essential here.
             let final_order: Vec<i64> = listed.iter().map(|e| e.id).chain(others).collect();
 
+            let mut stage_qb: QueryBuilder<Sqlite> =
+                QueryBuilder::new("UPDATE cards SET sort_order = CASE id");
             for (idx, id) in final_order.iter().enumerate() {
                 let staging = -1_i64 - idx as i64;
-                sqlx::query!("UPDATE cards SET sort_order=? WHERE id=?", staging, id)
-                    .execute(&mut *tx)
-                    .await?;
+                stage_qb.push(" WHEN ");
+                stage_qb.push_bind(id);
+                stage_qb.push(" THEN ");
+                stage_qb.push_bind(staging);
             }
+            stage_qb.push(" END WHERE id IN (");
+            let mut sep = stage_qb.separated(", ");
+            for id in &final_order {
+                sep.push_bind(id);
+            }
+            stage_qb.push(")");
+            stage_qb.build().execute(&mut *tx).await?;
+
+            // Apply the contiguous 0..N values. Same shape as above —
+            // one statement instead of `final_order.len()` round-trips.
+            let mut apply_qb: QueryBuilder<Sqlite> =
+                QueryBuilder::new("UPDATE cards SET updated_at = ");
+            apply_qb.push_bind(now);
+            apply_qb.push(", sort_order = CASE id");
             for (idx, id) in final_order.iter().enumerate() {
                 let final_slot = idx as i64;
-                sqlx::query!(
-                    "UPDATE cards SET sort_order=?, updated_at=? WHERE id=?",
-                    final_slot,
-                    now,
-                    id
-                )
+                apply_qb.push(" WHEN ");
+                apply_qb.push_bind(id);
+                apply_qb.push(" THEN ");
+                apply_qb.push_bind(final_slot);
+            }
+            apply_qb.push(" END WHERE id IN (");
+            let mut sep = apply_qb.separated(", ");
+            for id in &final_order {
+                sep.push_bind(id);
+            }
+            apply_qb.push(")");
+            apply_qb
+                .build()
                 .execute(&mut *tx)
                 .await
                 .map_err(map_unique_violation)?;
-            }
         }
 
         dissolve_singleton_folders(&mut tx, maybe_dissolve).await?;

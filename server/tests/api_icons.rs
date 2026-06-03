@@ -19,8 +19,8 @@ async fn upload_writes_file_under_data_dir_icons() {
     let state = AppState::new(nav, cfg, dir.path().to_path_buf());
     let app = build_app(state, session_layer(pool, false), dir.path().to_path_buf())
         .into_make_service_with_connect_info::<SocketAddr>();
-    let mut server = TestServer::new(app).unwrap();
-    server.do_save_cookies();
+    let mut server = TestServer::new(app);
+    server.save_cookies();
     server
         .post("/api/auth/login")
         .json(&serde_json::json!({"password":"pw"}))

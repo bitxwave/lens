@@ -22,7 +22,7 @@ async fn unknown_path_falls_back_to_index_html() {
     let state = AppState::new(nav, cfg, dir.path().to_path_buf());
 
     let app = build_app(state, session_layer(pool, false), dir.path().to_path_buf());
-    let server = TestServer::new(app).unwrap();
+    let server = TestServer::new(app);
     let res = server.get("/some/spa/route").await;
     res.assert_status_ok();
     assert!(res.text().contains("SPA"));

@@ -24,7 +24,7 @@ pub fn router() -> Router<AppState> {
     // first (reverse-proxy friendly) and falls back to peer-IP. The peer-IP
     // path requires the binary's `axum::serve` site to use
     // `.into_make_service_with_connect_info::<SocketAddr>()` — see `main.rs`.
-    let conf = Box::new(
+    let conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
             .per_second(180)
             .burst_size(5)
@@ -32,9 +32,7 @@ pub fn router() -> Router<AppState> {
             .finish()
             .expect("governor config"),
     );
-    let governor = GovernorLayer {
-        config: Box::leak(conf),
-    };
+    let governor = GovernorLayer::new(conf);
 
     Router::new()
         .route("/auth/login", post(login).layer(governor))

@@ -7,6 +7,8 @@ fn zero() -> i64 {
 
 // Field-length budgets — sized to be permissive enough for realistic
 // names while still rejecting payloads designed to balloon the DB.
+// validator 0.20 expects `u64` for `length(max = ...)` and the
+// constants are referenced bare (no string), so all of these stay u64.
 const NAME_MAX: u64 = 200;
 const SLUG_MAX: u64 = 100;
 const SITE_VALUE_MAX: u64 = 64;
@@ -164,21 +166,21 @@ pub struct CardPayload {
     pub kind: CardKind,
     #[serde(default)]
     pub parent_id: Option<i64>,
-    #[validate(length(min = 1, max = "NAME_MAX"))]
+    #[validate(length(min = 1, max = NAME_MAX))]
     pub name: String,
     #[serde(default)]
-    #[validate(length(min = 1, max = "SLUG_MAX"), custom = "validate_slug_opt")]
+    #[validate(length(min = 1, max = SLUG_MAX), custom(function = validate_slug))]
     pub slug: Option<String>,
     #[serde(default)]
     pub icon_kind: Option<IconKind>,
     #[serde(default)]
-    #[validate(length(min = 1, max = "ICON_VALUE_MAX"))]
+    #[validate(length(min = 1, max = ICON_VALUE_MAX))]
     pub icon_value: Option<String>,
     #[serde(default)]
-    #[validate(length(max = "DESCRIPTION_MAX"))]
+    #[validate(length(max = DESCRIPTION_MAX))]
     pub description: Option<String>,
     #[serde(default)]
-    #[validate(custom = "validate_links_map")]
+    #[validate(custom(function = validate_links_map))]
     pub links: std::collections::BTreeMap<String, String>,
 }
 
@@ -186,36 +188,23 @@ pub struct CardPayload {
 #[serde(rename_all = "camelCase")]
 pub struct CardPatch {
     #[serde(default)]
-    #[validate(length(min = 1, max = "NAME_MAX"))]
+    #[validate(length(min = 1, max = NAME_MAX))]
     pub name: Option<String>,
     #[serde(default)]
-    #[validate(length(min = 1, max = "SLUG_MAX"), custom = "validate_slug_opt")]
+    #[validate(length(min = 1, max = SLUG_MAX), custom(function = validate_slug))]
     pub slug: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
     pub parent_id: Option<Option<i64>>,
     #[serde(default)]
     pub icon_kind: Option<IconKind>,
     #[serde(default)]
-    #[validate(length(min = 1, max = "ICON_VALUE_MAX"))]
+    #[validate(length(min = 1, max = ICON_VALUE_MAX))]
     pub icon_value: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
     pub description: Option<Option<String>>,
     #[serde(default)]
-    #[validate(custom = "validate_links_map_opt")]
+    #[validate(custom(function = validate_links_map))]
     pub links: Option<std::collections::BTreeMap<String, String>>,
-}
-
-// `validator` 0.16's `custom = "fn"` insists on `fn(&T) -> Result<...>`
-// where T is the field type itself (not the inner type). For
-// `Option<String>` / `Option<Map>` we shim through these adaptors.
-fn validate_slug_opt(s: &str) -> Result<(), ValidationError> {
-    validate_slug(s)
-}
-
-fn validate_links_map_opt(
-    map: &std::collections::BTreeMap<String, String>,
-) -> Result<(), ValidationError> {
-    validate_links_map(map)
 }
 
 #[derive(Debug, Deserialize)]
@@ -233,11 +222,11 @@ pub struct ReorderEntry {
 pub struct AutoFolderPayload {
     pub source_item_id: i64,
     pub target_item_id: i64,
-    #[validate(length(min = 1, max = "NAME_MAX"))]
+    #[validate(length(min = 1, max = NAME_MAX))]
     pub name: String,
     /// Optional folder slug; auto-generated when omitted.
     #[serde(default)]
-    #[validate(length(min = 1, max = "SLUG_MAX"), custom = "validate_slug_opt")]
+    #[validate(length(min = 1, max = SLUG_MAX), custom(function = validate_slug))]
     pub slug: Option<String>,
 }
 
@@ -247,11 +236,11 @@ pub struct AutoFolderPayload {
 #[serde(rename_all = "camelCase")]
 pub struct SitePayload {
     #[validate(
-        length(min = 1, max = "SITE_VALUE_MAX"),
-        custom = "validate_site_value"
+        length(min = 1, max = SITE_VALUE_MAX),
+        custom(function = validate_site_value)
     )]
     pub value: String,
-    #[validate(length(min = 1, max = "NAME_MAX"))]
+    #[validate(length(min = 1, max = NAME_MAX))]
     pub name: String,
     #[serde(default)]
     pub is_default: bool,
@@ -262,19 +251,15 @@ pub struct SitePayload {
 pub struct SitePatch {
     #[serde(default)]
     #[validate(
-        length(min = 1, max = "SITE_VALUE_MAX"),
-        custom = "validate_site_value_opt"
+        length(min = 1, max = SITE_VALUE_MAX),
+        custom(function = validate_site_value)
     )]
     pub value: Option<String>,
     #[serde(default)]
-    #[validate(length(min = 1, max = "NAME_MAX"))]
+    #[validate(length(min = 1, max = NAME_MAX))]
     pub name: Option<String>,
     #[serde(default)]
     pub is_default: Option<bool>,
-}
-
-fn validate_site_value_opt(s: &str) -> Result<(), ValidationError> {
-    validate_site_value(s)
 }
 
 /// Reorder entry for sites — sites have no parent, only sort_order.

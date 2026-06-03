@@ -21,7 +21,7 @@ async fn server_with_password(pw: &str) -> (TestServer, std::sync::Arc<dyn Confi
     let state = AppState::new(nav, cfg.clone(), dir.clone());
     let app = build_app(state, session_layer(pool, false), dir)
         .into_make_service_with_connect_info::<SocketAddr>();
-    (TestServer::new(app).unwrap(), cfg)
+    (TestServer::new(app), cfg)
 }
 
 #[tokio::test]
@@ -53,7 +53,7 @@ async fn me_unauth_returns_false() {
         .await
         .unwrap()
         .into_make_service_with_connect_info::<SocketAddr>();
-    let server = TestServer::new(app).unwrap();
+    let server = TestServer::new(app);
     let res = server.get("/api/auth/me").await;
     res.assert_status_ok();
     res.assert_json(&serde_json::json!({ "authenticated": false }));
@@ -62,7 +62,7 @@ async fn me_unauth_returns_false() {
 #[tokio::test]
 async fn logout_clears_session() {
     let (mut server, _) = server_with_password("hunter2").await;
-    server.do_save_cookies();
+    server.save_cookies();
     server
         .post("/api/auth/login")
         .json(&serde_json::json!({ "password": "hunter2" }))

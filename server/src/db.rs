@@ -60,12 +60,22 @@ mod tests {
     #[tokio::test]
     async fn migrate_creates_tables() {
         let pool = connect_in_memory().await.unwrap();
+        // `cards` is the current polymorphic table that subsumed
+        // groups + items; should always exist post-migration.
         let row: (i64,) = sqlx::query_as(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='items'",
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='cards'",
         )
         .fetch_one(&pool)
         .await
         .unwrap();
         assert_eq!(row.0, 1);
+        // The legacy tables must be gone after migration 0005.
+        let row: (i64,) = sqlx::query_as(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('items','groups','item_links')",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(row.0, 0);
     }
 }

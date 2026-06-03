@@ -51,7 +51,25 @@ impl Settings {
     pub fn load() -> anyhow::Result<Self> {
         // Best-effort .env loading; ignore if missing.
         let _ = dotenvy::dotenv();
-        let s: Settings = Figment::new().merge(Env::raw().split("__")).extract()?;
+        // Two layers, last-merge-wins:
+        //
+        // 1. `Env::raw()` reads bare names like `PORT`, `DATA_DIR`,
+        //    `BOOTSTRAP_ADMIN_PASSWORD`. The Dockerfile, docker-compose,
+        //    and the existing operator-facing docs all use this form
+        //    and we don't want to break them silently.
+        // 2. `Env::prefixed("LENS_")` reads `LENS_PORT` etc. and strips
+        //    the prefix. Layered second, it overrides the bare reading
+        //    when both are set — useful when `PORT` is already taken
+        //    by another tenant in the same shell / container.
+        //
+        // Field-name typos still get silently swallowed by figment
+        // (the field doesn't exist on `Settings` so no error fires);
+        // the prefix doesn't change that. What it DOES give us is a
+        // way for new deployments to opt out of bare-name collisions.
+        let s: Settings = Figment::new()
+            .merge(Env::raw())
+            .merge(Env::prefixed("LENS_"))
+            .extract()?;
         std::fs::create_dir_all(&s.data_dir)?;
         Ok(s)
     }
@@ -66,22 +84,66 @@ impl Settings {
 mod tests {
     use super::*;
 
+    /// `cargo test` runs cases on the same thread pool, and they all
+    /// poke at the process-wide environment. Hold this mutex across
+    /// any test that mutates env vars to keep them serialised. Other
+    /// tests in the crate that touch env (notably `tests/cli.rs`)
+    /// run in their own process, so they don't need this lock.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn clear_env() {
+        for k in [
+            "PORT",
+            "DATA_DIR",
+            "STATIC_DIR",
+            "BOOTSTRAP_ADMIN_PASSWORD",
+            "SECURE_COOKIES",
+            "RUST_LOG",
+            "FAVICON_PROVIDER_URL",
+            "LENS_PORT",
+            "LENS_DATA_DIR",
+            "LENS_STATIC_DIR",
+            "LENS_BOOTSTRAP_ADMIN_PASSWORD",
+            "LENS_SECURE_COOKIES",
+            "LENS_RUST_LOG",
+            "LENS_FAVICON_PROVIDER_URL",
+        ] {
+            std::env::remove_var(k);
+        }
+    }
+
     #[test]
     fn defaults_are_sane() {
-        // SAFETY: this is single-threaded test code; std::env safe in tests.
-        std::env::remove_var("PORT");
-        std::env::remove_var("DATA_DIR");
-        std::env::remove_var("STATIC_DIR");
-        std::env::remove_var("BOOTSTRAP_ADMIN_PASSWORD");
-        std::env::remove_var("SECURE_COOKIES");
-        std::env::remove_var("RUST_LOG");
-        std::env::remove_var("FAVICON_PROVIDER_URL");
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_env();
         let s = Settings::load().unwrap();
         assert_eq!(s.port, 8080);
         assert!(s.data_dir.ends_with("dev-data"));
         assert!(!s.secure_cookies);
         assert!(s.bootstrap_admin_password.is_none());
         assert!(s.favicon_provider_url.contains("{host}"));
+    }
+
+    #[test]
+    fn lens_prefix_overrides_bare_name() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_env();
+        std::env::set_var("PORT", "8000");
+        std::env::set_var("LENS_PORT", "9000");
+        let s = Settings::load().unwrap();
+        // LENS_ wins because it merges last.
+        assert_eq!(s.port, 9000);
+        clear_env();
+    }
+
+    #[test]
+    fn bare_names_still_accepted_back_compat() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_env();
+        std::env::set_var("PORT", "8000");
+        let s = Settings::load().unwrap();
+        assert_eq!(s.port, 8000);
+        clear_env();
     }
 
     #[test]
