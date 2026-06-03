@@ -5,7 +5,7 @@ use std::io::{self, Write};
 use crate::auth::password;
 use crate::config::Settings;
 use crate::db::{connect, migrate};
-use crate::repo::{ConfigRepo, SqlxConfigRepo};
+use crate::repo::{config_keys as k, ConfigRepo, SqlxConfigRepo};
 
 #[derive(Parser, Debug)]
 #[command(name = "lens", version)]
@@ -48,8 +48,8 @@ pub async fn run_command(cmd: Command) -> anyhow::Result<()> {
             let hash = password::hash(&pw)?;
             let now = chrono::Utc::now().timestamp_millis().to_string();
             cfg.upsert_many(&[
-                ("admin_password_hash", &hash),
-                ("admin_password_updated_at", &now),
+                (k::ADMIN_PASSWORD_HASH, &hash),
+                (k::ADMIN_PASSWORD_UPDATED_AT, &now),
             ])
             .await?;
 
@@ -58,10 +58,12 @@ pub async fn run_command(cmd: Command) -> anyhow::Result<()> {
                 .execute(&pool)
                 .await?;
 
-            // Remove leftover INITIAL_PASSWORD.txt if any.
+            // Remove leftover INITIAL_PASSWORD.txt if any. Async fs is fine
+            // here even though the CLI itself is short-lived — keeps the
+            // idiom consistent with the request-time path in routes/config.rs.
             let initial = settings.data_dir.join("INITIAL_PASSWORD.txt");
-            if initial.exists() {
-                let _ = std::fs::remove_file(&initial);
+            match tokio::fs::remove_file(&initial).await {
+                Ok(()) | Err(_) => {}
             }
 
             println!("Admin password reset; all sessions invalidated.");

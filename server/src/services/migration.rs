@@ -1,6 +1,6 @@
 use crate::dto::*;
 use crate::error::{AppError, Result};
-use crate::repo::{ConfigRepo, NavRepo};
+use crate::repo::{config_keys as ck, ConfigRepo, NavRepo};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -76,25 +76,22 @@ pub async fn seed_if_empty(nav: Arc<dyn NavRepo>, config: Arc<dyn ConfigRepo>) -
         serde_json::from_str(BOOTSTRAP_JSON).map_err(|e| AppError::Other(anyhow::anyhow!(e)))?;
 
     // Meta → config kv
-    let mut pairs: Vec<(String, String)> = Vec::new();
-    pairs.push(("site_name".into(), doc.meta.site_name));
+    let mut pairs: Vec<(&str, String)> = Vec::new();
+    pairs.push((ck::SITE_NAME, doc.meta.site_name));
     if let Some(p) = doc.meta.site_avatar_path {
-        pairs.push(("site_avatar_path".into(), p));
+        pairs.push((ck::SITE_AVATAR_PATH, p));
     }
-    pairs.push(("site_copyright".into(), doc.meta.site_copyright));
-    pairs.push(("default_theme".into(), doc.meta.default_theme));
+    pairs.push((ck::SITE_COPYRIGHT, doc.meta.site_copyright));
+    pairs.push((ck::DEFAULT_THEME, doc.meta.default_theme));
     if let Some(l) = doc.meta.site_icp {
-        pairs.push(("site_icp_text".into(), l.text));
-        pairs.push(("site_icp_url".into(), l.url));
+        pairs.push((ck::SITE_ICP_TEXT, l.text));
+        pairs.push((ck::SITE_ICP_URL, l.url));
     }
     if let Some(l) = doc.meta.site_police {
-        pairs.push(("site_police_text".into(), l.text));
-        pairs.push(("site_police_url".into(), l.url));
+        pairs.push((ck::SITE_POLICE_TEXT, l.text));
+        pairs.push((ck::SITE_POLICE_URL, l.url));
     }
-    let pair_refs: Vec<(&str, &str)> = pairs
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
+    let pair_refs: Vec<(&str, &str)> = pairs.iter().map(|(k, v)| (*k, v.as_str())).collect();
     config.upsert_many(&pair_refs).await?;
 
     // Sites

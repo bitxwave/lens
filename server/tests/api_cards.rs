@@ -5,6 +5,7 @@ use lens::db::connect_in_memory;
 use lens::dto::SitePayload;
 use lens::repo::{ConfigRepo, NavRepo, SqlxConfigRepo, SqlxNavRepo};
 use lens::state::AppState;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 async fn auth_server() -> TestServer {
@@ -23,7 +24,9 @@ async fn auth_server() -> TestServer {
     .unwrap();
     let dir = std::env::temp_dir();
     let state = AppState::new(nav, cfg, dir.clone());
-    let mut server = TestServer::new(build_app(state, session_layer(pool, false), dir)).unwrap();
+    let app = build_app(state, session_layer(pool, false), dir)
+        .into_make_service_with_connect_info::<SocketAddr>();
+    let mut server = TestServer::new(app).unwrap();
     server.do_save_cookies();
     server
         .post("/api/auth/login")

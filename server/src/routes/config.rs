@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use crate::auth::{password, RequireAuth};
 use crate::error::{AppError, Result};
+use crate::repo::config_keys as k;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -53,7 +54,7 @@ async fn change_password(
     }
     let current_hash = s
         .config
-        .get("admin_password_hash")
+        .get(k::ADMIN_PASSWORD_HASH)
         .await?
         .ok_or(AppError::Unauthenticated)?;
     if !password::verify(&body.current, &current_hash)? {
@@ -63,14 +64,16 @@ async fn change_password(
     let now = chrono::Utc::now().timestamp_millis().to_string();
     s.config
         .upsert_many(&[
-            ("admin_password_hash", &new_hash),
-            ("admin_password_updated_at", &now),
+            (k::ADMIN_PASSWORD_HASH, &new_hash),
+            (k::ADMIN_PASSWORD_UPDATED_AT, &now),
         ])
         .await?;
 
     let initial = s.data_dir.join("INITIAL_PASSWORD.txt");
-    if initial.exists() {
-        if let Err(e) = std::fs::remove_file(&initial) {
+    match tokio::fs::remove_file(&initial).await {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
             tracing::warn!(error=%e, ?initial, "failed to remove INITIAL_PASSWORD.txt");
         }
     }

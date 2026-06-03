@@ -7,25 +7,28 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use tower_governor::governor::GovernorConfigBuilder;
-use tower_governor::key_extractor::GlobalKeyExtractor;
+use tower_governor::key_extractor::SmartIpKeyExtractor;
 use tower_governor::GovernorLayer;
 use tower_sessions::Session;
 
 use crate::auth::password;
 use crate::auth::session::SESSION_KEY_AUTHED;
 use crate::error::{AppError, Result};
+use crate::repo::config_keys as k;
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
     // 5 attempts per 15 minutes ≈ 1 token replenished every 180s with a burst of 5.
-    // GlobalKeyExtractor: single shared bucket for the login route. This avoids
-    // per-IP keying which would require `into_make_service_with_connect_info`
-    // wiring at the serve site — out of scope for this task.
+    // Per-IP bucket so a single attacker can't lock out other operators.
+    // `SmartIpKeyExtractor` reads `X-Forwarded-For` / `X-Real-IP` / `Forwarded`
+    // first (reverse-proxy friendly) and falls back to peer-IP. The peer-IP
+    // path requires the binary's `axum::serve` site to use
+    // `.into_make_service_with_connect_info::<SocketAddr>()` — see `main.rs`.
     let conf = Box::new(
         GovernorConfigBuilder::default()
             .per_second(180)
             .burst_size(5)
-            .key_extractor(GlobalKeyExtractor)
+            .key_extractor(SmartIpKeyExtractor)
             .finish()
             .expect("governor config"),
     );
@@ -51,7 +54,7 @@ async fn login(
 ) -> Result<StatusCode> {
     let hashed = s
         .config
-        .get("admin_password_hash")
+        .get(k::ADMIN_PASSWORD_HASH)
         .await?
         .ok_or(AppError::Unauthenticated)?;
     if !password::verify(&body.password, &hashed)? {

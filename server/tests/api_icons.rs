@@ -4,6 +4,7 @@ use lens::auth::{password, session::layer as session_layer};
 use lens::db::connect_in_memory;
 use lens::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
 use lens::state::AppState;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 #[tokio::test]
@@ -16,7 +17,8 @@ async fn upload_writes_file_under_data_dir_icons() {
         .unwrap();
     let dir = tempfile::TempDir::new().unwrap();
     let state = AppState::new(nav, cfg, dir.path().to_path_buf());
-    let app = build_app(state, session_layer(pool, false), dir.path().to_path_buf());
+    let app = build_app(state, session_layer(pool, false), dir.path().to_path_buf())
+        .into_make_service_with_connect_info::<SocketAddr>();
     let mut server = TestServer::new(app).unwrap();
     server.do_save_cookies();
     server

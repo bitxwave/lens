@@ -13,6 +13,7 @@ pub struct FaviconService {
 
 impl FaviconService {
     pub fn new(cache_dir: PathBuf) -> Self {
+        // One-shot at startup; staying sync keeps `new` non-async.
         std::fs::create_dir_all(&cache_dir).ok();
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
@@ -27,10 +28,10 @@ impl FaviconService {
             return Err(AppError::Validation("bad host".into()));
         }
         let cached = self.cache_dir.join(host);
-        if let Ok(meta) = std::fs::metadata(&cached) {
+        if let Ok(meta) = tokio::fs::metadata(&cached).await {
             if let Ok(age) = SystemTime::now().duration_since(meta.modified()?) {
                 if age < TTL {
-                    let bytes = Bytes::from(std::fs::read(&cached)?);
+                    let bytes = Bytes::from(tokio::fs::read(&cached).await?);
                     return Ok(("image/png".into(), bytes));
                 }
             }
@@ -52,7 +53,7 @@ impl FaviconService {
         if bytes.len() as u64 > MAX_BYTES {
             return Err(AppError::Validation("favicon too large".into()));
         }
-        std::fs::write(&cached, &bytes)?;
+        tokio::fs::write(&cached, &bytes).await?;
         Ok(("image/png".into(), bytes))
     }
 }

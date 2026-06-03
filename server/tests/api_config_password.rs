@@ -4,6 +4,7 @@ use lens::auth::{password, session::layer as session_layer};
 use lens::db::connect_in_memory;
 use lens::repo::{ConfigRepo, SqlxConfigRepo, SqlxNavRepo};
 use lens::state::AppState;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -17,7 +18,8 @@ async fn boot() -> (TestServer, std::sync::Arc<dyn ConfigRepo>, TempDir) {
     let dir = TempDir::new().unwrap();
     std::fs::write(dir.path().join("INITIAL_PASSWORD.txt"), "old").unwrap();
     let state = AppState::new(nav, cfg.clone(), dir.path().to_path_buf());
-    let app = build_app(state, session_layer(pool, false), dir.path().to_path_buf());
+    let app = build_app(state, session_layer(pool, false), dir.path().to_path_buf())
+        .into_make_service_with_connect_info::<SocketAddr>();
     let mut server = TestServer::new(app).unwrap();
     server.do_save_cookies();
     server

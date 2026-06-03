@@ -1,6 +1,6 @@
 use crate::auth::password;
 use crate::error::Result;
-use crate::repo::ConfigRepo;
+use crate::repo::{config_keys as k, ConfigRepo};
 use rand::distributions::{Alphanumeric, DistString};
 use std::path::Path;
 use std::sync::Arc;
@@ -18,7 +18,7 @@ pub async fn ensure_admin_password(
     data_dir: &Path,
     env_password: Option<String>,
 ) -> Result<BootstrapOutcome> {
-    if config.get("admin_password_hash").await?.is_some() {
+    if config.get(k::ADMIN_PASSWORD_HASH).await?.is_some() {
         return Ok(BootstrapOutcome::AlreadySet);
     }
 
@@ -28,8 +28,8 @@ pub async fn ensure_admin_password(
         let hash = password::hash(&pw)?;
         config
             .upsert_many(&[
-                ("admin_password_hash", &hash),
-                ("admin_password_updated_at", &now),
+                (k::ADMIN_PASSWORD_HASH, &hash),
+                (k::ADMIN_PASSWORD_UPDATED_AT, &now),
             ])
             .await?;
         tracing::warn!("Admin password set from env. Please change it via UI immediately.");
@@ -40,8 +40,8 @@ pub async fn ensure_admin_password(
     let hash = password::hash(&pw)?;
     config
         .upsert_many(&[
-            ("admin_password_hash", &hash),
-            ("admin_password_updated_at", &now),
+            (k::ADMIN_PASSWORD_HASH, &hash),
+            (k::ADMIN_PASSWORD_UPDATED_AT, &now),
         ])
         .await?;
 

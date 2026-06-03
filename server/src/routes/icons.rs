@@ -21,7 +21,7 @@ async fn upload(
     mut form: Multipart,
 ) -> Result<(StatusCode, Json<Value>)> {
     let icons_dir = s.data_dir.join("icons");
-    std::fs::create_dir_all(&icons_dir)?;
+    tokio::fs::create_dir_all(&icons_dir).await?;
 
     while let Some(field) = form
         .next_field()
@@ -57,7 +57,7 @@ async fn upload(
         let nonce = Alphanumeric.sample_string(&mut rand::thread_rng(), 8);
         let stored = format!("{nonce}.{ext}");
         let path = icons_dir.join(&stored);
-        std::fs::write(&path, &data)?;
+        tokio::fs::write(&path, &data).await?;
         let public_path = format!("/icons/{stored}");
         return Ok((
             StatusCode::CREATED,

@@ -53,7 +53,14 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], settings.port));
     let listener = TcpListener::bind(addr).await.context("bind")?;
     tracing::info!(%addr, "lens listening");
-    axum::serve(listener, app).await.context("serve")?;
+    // ConnectInfo<SocketAddr> is required by tower_governor's SmartIpKeyExtractor
+    // peer-IP fallback path (see routes/auth.rs).
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .context("serve")?;
     Ok(())
 }
 

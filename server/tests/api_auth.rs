@@ -3,6 +3,7 @@ use lens::app::build_app_for_tests;
 use lens::auth::password;
 use lens::db::connect_in_memory;
 use lens::repo::{ConfigRepo, SqlxConfigRepo};
+use std::net::SocketAddr;
 
 async fn server_with_password(pw: &str) -> (TestServer, std::sync::Arc<dyn ConfigRepo>) {
     use lens::app::build_app;
@@ -18,7 +19,8 @@ async fn server_with_password(pw: &str) -> (TestServer, std::sync::Arc<dyn Confi
         .unwrap();
     let dir = std::env::temp_dir();
     let state = AppState::new(nav, cfg.clone(), dir.clone());
-    let app = build_app(state, session_layer(pool, false), dir);
+    let app = build_app(state, session_layer(pool, false), dir)
+        .into_make_service_with_connect_info::<SocketAddr>();
     (TestServer::new(app).unwrap(), cfg)
 }
 
@@ -47,7 +49,10 @@ async fn login_with_wrong_password_returns_401() {
 
 #[tokio::test]
 async fn me_unauth_returns_false() {
-    let app = build_app_for_tests().await.unwrap();
+    let app = build_app_for_tests()
+        .await
+        .unwrap()
+        .into_make_service_with_connect_info::<SocketAddr>();
     let server = TestServer::new(app).unwrap();
     let res = server.get("/api/auth/me").await;
     res.assert_status_ok();

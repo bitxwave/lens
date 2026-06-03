@@ -40,11 +40,24 @@ fn icon_kind_str(k: IconKind) -> &'static str {
     }
 }
 
-fn parse_icon_kind(s: &str) -> IconKind {
+fn parse_icon_kind(s: &str) -> Result<IconKind> {
     match s {
-        "url" => IconKind::Url,
-        "auto-favicon" => IconKind::AutoFavicon,
-        _ => IconKind::Asset,
+        "asset" => Ok(IconKind::Asset),
+        "url" => Ok(IconKind::Url),
+        "auto-favicon" => Ok(IconKind::AutoFavicon),
+        other => Err(AppError::Other(anyhow::anyhow!(
+            "invalid icon_kind in DB: {other:?}"
+        ))),
+    }
+}
+
+fn parse_card_kind(s: &str) -> Result<CardKind> {
+    match s {
+        "folder" => Ok(CardKind::Folder),
+        "item" => Ok(CardKind::Item),
+        other => Err(AppError::Other(anyhow::anyhow!(
+            "invalid card kind in DB: {other:?}"
+        ))),
     }
 }
 
@@ -805,27 +818,25 @@ async fn list_cards_inner(pool: &SqlitePool) -> Result<Vec<Card>> {
         .into_iter()
         .map(|r| {
             let kind_s: String = r.get("kind");
-            let kind = match kind_s.as_str() {
-                "folder" => CardKind::Folder,
-                _ => CardKind::Item,
-            };
+            let kind = parse_card_kind(&kind_s)?;
             let icon_kind_s: Option<String> = r.get("icon_kind");
-            Card {
+            let icon_kind = icon_kind_s.as_deref().map(parse_icon_kind).transpose()?;
+            Ok(Card {
                 id: r.get::<i64, _>("id"),
                 kind,
                 parent_id: r.get::<Option<i64>, _>("parent_id"),
                 sort_order: r.get::<i64, _>("sort_order"),
                 name: r.get::<String, _>("name"),
                 slug: r.get::<Option<String>, _>("slug"),
-                icon_kind: icon_kind_s.as_deref().map(parse_icon_kind),
+                icon_kind,
                 icon_value: r.get::<Option<String>, _>("icon_value"),
                 description: r.get::<Option<String>, _>("description"),
                 links: BTreeMap::new(),
                 created_at: r.get::<i64, _>("created_at"),
                 updated_at: r.get::<i64, _>("updated_at"),
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     let link_rows = sqlx::query(
         "SELECT cl.card_id, s.value, cl.url \

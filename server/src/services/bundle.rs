@@ -1,6 +1,6 @@
 use crate::dto::*;
 use crate::error::Result;
-use crate::repo::{ConfigRepo, NavRepo};
+use crate::repo::{config_keys as k, ConfigRepo, NavRepo};
 use std::sync::Arc;
 
 pub async fn assemble_bundle(
@@ -11,27 +11,27 @@ pub async fn assemble_bundle(
 
     let cfg = config
         .get_many(&[
-            "site_name",
-            "site_avatar_path",
-            "site_copyright",
-            "site_icp_text",
-            "site_icp_url",
-            "site_police_text",
-            "site_police_url",
-            "default_theme",
+            k::SITE_NAME,
+            k::SITE_AVATAR_PATH,
+            k::SITE_COPYRIGHT,
+            k::SITE_ICP_TEXT,
+            k::SITE_ICP_URL,
+            k::SITE_POLICE_TEXT,
+            k::SITE_POLICE_URL,
+            k::DEFAULT_THEME,
         ])
         .await?;
 
     let icp = match (
-        cfg.get("site_icp_text").cloned(),
-        cfg.get("site_icp_url").cloned(),
+        cfg.get(k::SITE_ICP_TEXT).cloned(),
+        cfg.get(k::SITE_ICP_URL).cloned(),
     ) {
         (Some(text), Some(url)) => Some(Link { text, url }),
         _ => None,
     };
     let police = match (
-        cfg.get("site_police_text").cloned(),
-        cfg.get("site_police_url").cloned(),
+        cfg.get(k::SITE_POLICE_TEXT).cloned(),
+        cfg.get(k::SITE_POLICE_URL).cloned(),
     ) {
         (Some(text), Some(url)) => Some(Link { text, url }),
         _ => None,
@@ -39,15 +39,15 @@ pub async fn assemble_bundle(
 
     let meta = Meta {
         site_name: cfg
-            .get("site_name")
+            .get(k::SITE_NAME)
             .cloned()
             .unwrap_or_else(|| "Navigation".into()),
-        site_avatar_path: cfg.get("site_avatar_path").cloned(),
-        site_copyright: cfg.get("site_copyright").cloned().unwrap_or_default(),
+        site_avatar_path: cfg.get(k::SITE_AVATAR_PATH).cloned(),
+        site_copyright: cfg.get(k::SITE_COPYRIGHT).cloned().unwrap_or_default(),
         site_icp: icp,
         site_police: police,
         default_theme: cfg
-            .get("default_theme")
+            .get(k::DEFAULT_THEME)
             .cloned()
             .unwrap_or_else(|| "system".into()),
     };
