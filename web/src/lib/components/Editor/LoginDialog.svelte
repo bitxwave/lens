@@ -6,6 +6,7 @@
   import { ApiError } from '$lib/api/client';
   import { t } from '$lib/i18n/store';
   import { toast } from '$lib/components/ui/toast';
+  import { get } from 'svelte/store';
 
   interface Props {
     open: boolean;
@@ -29,8 +30,19 @@
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 401) error = $t('auth.login.error.bad_password');
-        else if (e.status === 429) error = $t('auth.login.error.rate_limited');
-        else error = $t('error.unknown');
+        else if (e.status === 429) {
+          // Rate-limited: server may have already accepted earlier
+          // attempts and cookied the session — just hidden behind a
+          // 429 retry-after. Re-check session before deciding the
+          // login failed; if we ARE authed now, close as success.
+          await sessionStore.refresh();
+          if (get(sessionStore).authed) {
+            password = '';
+            open = false;
+            return;
+          }
+          error = $t('auth.login.error.rate_limited');
+        } else error = $t('error.unknown');
       } else {
         error = $t('error.network.offline');
       }

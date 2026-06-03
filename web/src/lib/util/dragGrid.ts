@@ -92,24 +92,47 @@ export interface DragGridOptions {
 
 const LIFT_THRESHOLD_PX = 5;
 /** Fraction of the target cell area that the dragged card must overlap
- *  for a merge intent to register. Replaces the old cursor-inside-inner-N
- *  rule (which triggered too easily when the cursor merely brushed a
- *  card's center). With 0.85 the dragged card has to sit almost fully
- *  on top of the target before halo or folder-arming begins. */
-const MERGE_OVERLAP_FRACTION = 0.85;
-const MERGE_ARM_MS = 200; // arm fires (release ≥ here = merge)
-const MERGE_READY_MS = 600; // ready halo strengthens
-const MERGE_CANCEL_MOVE_PX = 8; // jitter tolerance during pre-arm
+ *  for a merge intent to register. Lowered from 0.85 → 0.55: at 0.85
+ *  the user had to drop the card almost dead-centre, which felt
+ *  unresponsive — they could brush past a target with the cursor
+ *  clearly inside it and the halo still wouldn't light. 0.55 keeps
+ *  the halo from triggering on a glancing pass (≥ half the target
+ *  must be covered) but accepts the natural "I'm hovering over this
+ *  one" gesture that humans actually make. */
+const MERGE_OVERLAP_FRACTION = 0.55;
+/** Arm fires after this dwell. Was 200ms — short enough but the halo
+ *  during armed phase was so subtle that users only "felt" the merge
+ *  state once ready hit at 600ms. Halved + bumped armed visual weight
+ *  so the feedback arrives sooner and is unmistakable. */
+const MERGE_ARM_MS = 120;
+/** Ready promotes halo to its strongest form. Tightened to 380ms
+ *  (was 600) so a deliberate hover converges to the "release now"
+ *  prompt within a single perceptual tick after armed shows. */
+const MERGE_READY_MS = 380;
+/** Pre-arm jitter tolerance. Bumped 8 → 14 — at 8px a steady but
+ *  imperfect mouse hold (or trembling finger on touch) was restarting
+ *  the timer enough that armed never converged. 14 swallows the
+ *  jitter without letting an obvious side-step still count as hover. */
+const MERGE_CANCEL_MOVE_PX = 14;
 /** Reorder shift transition duration. Exported so callers (e.g. the
  *  page using dragGrid) can set `--shift-duration` on the canvas to
  *  keep CSS in sync. Card.svelte falls back to this value if the var
- *  is unset. */
-export const SHIFT_DURATION_MS = 220;
+ *  is unset. Lowered 220ms → 160ms: the shift was visibly lagging
+ *  behind cursor movement on quick drags, making the layout feel
+ *  rubbery rather than responsive. */
+export const SHIFT_DURATION_MS = 160;
 // SHIFT_EASE is exposed via CSS variable on Card.svelte; not needed here
 const HOVER_DWELL_MS = 500; // existing spring-load (unchanged)
 const EDGE_PAN_THRESHOLD_PX = 80;
-const EDGE_PAN_DWELL_MS = 600;
-const EDGE_PAN_INTERVAL_MS = 800;
+/** Edge-pan first-fire dwell. 600ms felt unresponsive when the user
+ *  reached the edge and had to wait — they'd assume it wasn't going
+ *  to advance and back off. 350ms still gives a clear "deliberate"
+ *  threshold without feeling stuck. */
+const EDGE_PAN_DWELL_MS = 350;
+/** Subsequent page-turn cadence after the first fire — long enough
+ *  that the user can stop on a target page; was 800ms which felt
+ *  sluggish when crossing 3+ pages. */
+const EDGE_PAN_INTERVAL_MS = 600;
 const CLONE_OPACITY = 0.88;
 const CLONE_LIFT_SCALE = 1.05;
 const CLONE_ID = '__draggrid_clone__';
@@ -210,6 +233,19 @@ export function computeShifts(input: ComputeShiftsInput): Map<number, { dx: numb
 
   const tgtBucket = buckets[targetZone] ?? [];
   const tgtGeo = input.gridGeometryByZone?.[targetZone];
+  /* Per-page root zones ("root:p<idx>") need cross-page wrap when an
+   * insertion pushes the last card off the bottom of the page. We
+   * can't extrapolate inside the same bucket (that yields a phantom
+   * 4th row stuck below the visible page); instead, the overflow card
+   * should travel to the FIRST slot of the next page's bucket. The
+   * next page is currently transformed off-screen by the pager, so
+   * its slot rect is in real screen coords (negative or > viewport)
+   * — translating to it visually shows the card "leaving for next
+   * page", which is exactly what's about to happen on commit. */
+  const pagedRootMatch = /^root:p(\d+)$/.exec(targetZone);
+  const nextPageBucket: SlotRect[] | null = pagedRootMatch
+    ? (buckets[`root:p${Number(pagedRootMatch[1]) + 1}`] ?? null)
+    : null;
   for (const slot of tgtBucket) {
     const i = slot.logicalIdx;
     if (i < dropIdx) continue;
@@ -222,6 +258,14 @@ export function computeShifts(input: ComputeShiftsInput): Map<number, { dx: numb
     if (targetSlot) {
       dx = targetSlot.rect.left - slot.rect.left;
       dy = targetSlot.rect.top - slot.rect.top;
+    } else if (pagedRootMatch) {
+      // Overflowing past this page. Wrap to next page's slot 0 if it
+      // exists; otherwise nothing to anchor on, leave it in place
+      // (last page is rare; refetch after drop creates the new page).
+      const wrapTarget = nextPageBucket?.find((s) => s.logicalIdx === 0);
+      if (!wrapTarget) continue;
+      dx = wrapTarget.rect.left - slot.rect.left;
+      dy = wrapTarget.rect.top - slot.rect.top;
     } else {
       const targetPos = extrapolateSlotPosition(tgtBucket, newIdx, tgtGeo);
       if (!targetPos) continue;
@@ -768,15 +812,20 @@ export function dragGrid(
     // only ever be reordered), so we only arm merge candidates when
     // the source is an item.
     //
-    // Both also gate on target.zone === 'root'. Inside an open folder
+    // Both also gate on target being a root zone. Inside an open folder
     // panel a "merge" cursor is ambiguous (you can't nest folders, and
     // every child is already in a folder), so the drop handler in
     // +page.svelte coerces merge→before/after there. We mirror that
     // here so the halo never lights up on a target the drop won't
     // honour — otherwise the user sees a blue ring promising auto-
     // folder while a release silently reorders instead.
+    //
+    // NOTE: zone "root" got split into per-page "root:p<idx>" by
+    // +page.svelte to fix cross-page shift math. startsWith('root')
+    // recognises both the legacy single-bucket form and the new
+    // per-page form so merge arming + halo work in either layout.
     const sourceIsItem = session.source.kind === 'item';
-    const targetInRoot = next.target?.zone === 'root';
+    const targetInRoot = next.target?.zone.startsWith('root') ?? false;
     const isMergeItem =
       sourceIsItem &&
       next.intent === 'merge' &&
@@ -876,7 +925,7 @@ export function dragGrid(
     const mergeCollapse =
       target != null &&
       next.intent === 'merge' &&
-      (target.kind === 'folder' || session.mergeArmFired || target.zone !== 'root');
+      (target.kind === 'folder' || session.mergeArmFired || !target.zone.startsWith('root'));
     if (mergeCollapse) {
       // Don't open an insertion gap, but DO close the source's own
       // gap so its hidden slot doesn't show as a visible empty space

@@ -673,8 +673,15 @@
     return ordered.map((c, i) => ({ id: c.id, sortOrder: i, parentId }));
   }
 
+  /** Treat any "root:p<idx>" zone as the flat root bucket. Per-page
+   *  zones exist only for dragGrid's per-page shift isolation; the
+   *  server / store keeps a single root list. */
+  function isRootZone(zone: string): boolean {
+    return zone === 'root' || zone.startsWith('root:p');
+  }
+
   function bucketFor(zone: string): CardType[] {
-    if (zone === 'root') return $rootCards;
+    if (isRootZone(zone)) return $rootCards;
     if (zone.startsWith('folder:')) {
       const fid = Number(zone.slice('folder:'.length));
       return folderChildrenById.get(fid) ?? [];
@@ -683,7 +690,7 @@
   }
 
   function parentIdFor(zone: string): number | null {
-    if (zone === 'root') return null;
+    if (isRootZone(zone)) return null;
     if (zone.startsWith('folder:')) {
       const fid = Number(zone.slice('folder:'.length));
       return Number.isFinite(fid) ? fid : null;
@@ -702,7 +709,7 @@
     //    reorder. So we require the target to be in the root zone for
     //    these two cases. Anything else falls through to before/after
     //    reorder using the cursor side.
-    if (info.intent === 'merge' && info.target && info.target.zone === 'root') {
+    if (info.intent === 'merge' && info.target && isRootZone(info.target.zone)) {
       if (info.source.kind === 'item' && info.target.kind === 'item') {
         // item-on-item at root → autoFolder
         try {
@@ -744,7 +751,7 @@
       (info.intent === 'before' || info.intent === 'after' || info.intent === 'merge')
     ) {
       // Folder cannot become a child of another folder.
-      if (info.source.kind === 'folder' && info.target.zone !== 'root') return;
+      if (info.source.kind === 'folder' && !isRootZone(info.target.zone)) return;
       const effectiveIntent: DropIntent = info.intent === 'merge' ? 'before' : info.intent;
       const targetZone = info.target.zone;
       const targetBucket = bucketFor(targetZone);
@@ -779,7 +786,13 @@
         insertAt,
         parentId
       );
-      if (info.source.zone !== targetZone) {
+      /* Cross-zone bucket renumber: only matters when source and
+       * target belong to *different parents*. Per-page root zones
+       * ("root:p0" vs "root:p1") share the same parent (null), so a
+       * cross-page reorder doesn't need a second oldEntries pass —
+       * reorderEntries above already covers the whole flat root list. */
+      const sameParent = parentIdFor(info.source.zone) === parentId;
+      if (info.source.zone !== targetZone && !sameParent) {
         const oldBucket = bucketFor(info.source.zone).filter((c) => c.id !== info.source.id);
         const oldEntries = oldBucket.map((c, i) => ({
           id: c.id,
@@ -820,7 +833,10 @@
     }
 
     // 4) Source came from a folder, dropped on root (or out of zone).
-    if (info.source.zone.startsWith('folder:') && (info.hoverZone === 'root' || info.outOfZone)) {
+    if (
+      info.source.zone.startsWith('folder:') &&
+      ((info.hoverZone && isRootZone(info.hoverZone)) || info.outOfZone)
+    ) {
       try {
         await patchCard(info.source.id, { parentId: null });
         await navDataStore.refetch();
@@ -920,7 +936,14 @@
           <div class="track" bind:this={trackEl} style={trackStyle}>
             {#each pages as pageCards, pageIdx (pageIdx)}
               <div class="page">
-                <div class="grid" data-zone="root" style={gridStyle}>
+                <!-- Per-page zone id ("root:p<idx>"). dragGrid treats each
+                     zone as an independent layout bucket — this keeps the
+                     reorder shift animation from trying to "fill" a slot
+                     on the off-screen page when dragging across pages.
+                     handleDrop maps any "root:p*" zone back to root parent
+                     so server-side semantics stay flat (single root list,
+                     no nested page concept on the data model). -->
+                <div class="grid" data-zone={`root:p${pageIdx}`} style={gridStyle}>
                   {#each pageCards as card (card.id)}
                     <Card
                       {card}

@@ -31,6 +31,10 @@
       jiggleMode.exit();
     }
   }
+
+  /* Double-click exit is handled globally in +layout.svelte (window
+   * listener), so any empty area — header, gradient backdrop, grid —
+   * dismisses jiggle without each region needing its own handler. */
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->

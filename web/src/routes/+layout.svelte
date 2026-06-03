@@ -13,8 +13,30 @@
    *  dashboard layout inside +page.svelte. The body class also flips
    *  the global gradient over to a neutral surface — see app.scss. */
   const isAdmin = $derived($page.url.pathname.startsWith('/admin'));
+
+  /** Global "double-click empty space exits jiggle". Listening on window
+   *  catches dblclick anywhere in the app — header, gradient backdrop,
+   *  grid empty cells, etc. — without each region having to opt in.
+   *  We bail out if the dblclick landed on an interactive element
+   *  (cards, buttons, inputs, etc.) so existing card-edit / form
+   *  interactions are unaffected. */
+  function onWindowDblClick(e: MouseEvent) {
+    if (!$jiggleMode) return;
+    if (isAdmin) return;
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    if (
+      t.closest(
+        'button, a, input, select, textarea, [role="button"], [role="dialog"], [data-card-id], [data-add-cell], [data-no-jiggle-dismiss]'
+      )
+    ) {
+      return;
+    }
+    jiggleMode.exit();
+  }
 </script>
 
+<svelte:window ondblclick={onWindowDblClick} />
 <svelte:body class:jiggle-mode={$jiggleMode} class:admin-route={isAdmin} />
 
 {#if isAdmin}
