@@ -1,5 +1,7 @@
 <!-- web/src/lib/components/ui/Chip.svelte -->
 <script lang="ts">
+  import { t } from '$lib/i18n/store';
+
   interface Props {
     label: string;
     active?: boolean;
@@ -17,7 +19,7 @@
     <span
       class="x"
       role="button"
-      aria-label="Remove"
+      aria-label={$t('common.remove')}
       tabindex="0"
       onclick={(e) => {
         e.stopPropagation();

@@ -76,33 +76,40 @@
   --tr-slow: 260ms ease-out;
 }
 
+/* Dark — deep midnight, macOS Sonoma / Raycast inspired.
+ * App chrome (admin / dialogs) uses solid surfaces; the launchpad
+ * gradient + frosted card surface come from app.scss + Card.svelte
+ * (which override `.card` background under [data-theme='dark']).
+ * Accent shifted lighter (indigo-300) for legible contrast on dark. */
 [data-theme='dark'] {
-  --c-bg: #0e0e0d;
-  --c-surface: #18181a;
-  --c-surface-2: #232326;
-  --c-border: #2c2c30;
-  --c-text: #f5f5f3;
-  --c-text-2: #b5b5b0;
-  --c-text-3: #767672;
-  --c-accent: #818cf8;
-  --c-accent-hover: #a5b4fc;
-  --c-accent-bg: #1e1b4b;
-  --c-success: #10b981;
-  --c-warn: #f59e0b;
+  --c-bg: #0a0c14;
+  --c-surface: #161a24;
+  --c-surface-2: #1e2231;
+  --c-border: #2c3041;
+  --c-text: #f1f2f5;
+  --c-text-2: #a5a8b3;
+  --c-text-3: #6c6f7d;
+  --c-accent: #a5b4fc;
+  --c-accent-hover: #c7d2fe;
+  --c-accent-bg: rgba(99, 102, 241, 0.18);
+  --c-success: #34d399;
+  --c-warn: #fbbf24;
   --c-danger: #f87171;
-  --c-danger-bg: #3f1d1d;
+  --c-danger-bg: rgba(248, 113, 113, 0.12);
 
-  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.55);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
 
-  --sh-card: 0 6px 18px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --sh-card-hover: 0 12px 28px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.35);
+  /* Card shadow on dark — slight blue under-glow (instead of pure black)
+   * so cards over the indigo gradient look lifted, not stamped flat. */
+  --sh-card: 0 6px 18px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  --sh-card-hover: 0 14px 32px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
 
-  --c-card-label: #f5f5f3;
-  --sh-card-label: 0 1px 6px rgba(0, 0, 0, 0.6);
+  --c-card-label: #f1f2f5;
+  --sh-card-label: 0 1px 8px rgba(0, 0, 0, 0.75);
 
-  --c-section-heading: rgba(245, 245, 243, 0.85);
+  --c-section-heading: rgba(241, 242, 245, 0.88);
 }
 
 @media (prefers-reduced-motion: reduce) {

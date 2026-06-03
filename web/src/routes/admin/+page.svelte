@@ -75,7 +75,7 @@
     </header>
 
     <div class="body">
-      <aside class="sidebar" aria-label="Admin sections">
+      <aside class="sidebar" aria-label={$t('admin.nav.aria')}>
         <div class="side-head">{$t('admin.head.settings')}</div>
         <nav class="side-nav">
           {#each TABS as tab (tab.id)}

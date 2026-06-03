@@ -94,7 +94,7 @@
     try {
       const links = buildLinks();
       if (Object.keys(links).length === 0) {
-        throw new Error('At least one link is required.');
+        throw new Error($t('editor.item.error.linkRequired'));
       }
       let createdCard: Card | null = null;
       if (target) {
@@ -143,9 +143,9 @@
 
 <Dialog bind:open title={target ? $t('common.edit') : $t('editor.item.new')} width="md">
   <div class="form">
-    <Input label={$t('common.edit') + ' — name'} bind:value={name} />
+    <Input label={$t('editor.item.field.name')} bind:value={name} />
     <label class="grp">
-      <span class="lbl">Folder</span>
+      <span class="lbl">{$t('editor.item.field.folder')}</span>
       <select bind:value={parentId}>
         <option value={null}>—</option>
         {#each folderOptions as f (f.id)}
@@ -153,42 +153,65 @@
         {/each}
       </select>
     </label>
-    <IconSourcePicker bind:kind={iconKind} bind:value={iconValue} />
+    <section class="field-group">
+      <span class="fg-title">{$t('editor.item.field.icon')}</span>
+      <div class="fg-body">
+        <IconSourcePicker bind:kind={iconKind} bind:value={iconValue} hideKindLabel />
+      </div>
+    </section>
 
-    <div class="grp">
-      <span class="lbl">Links per site</span>
-      <div class="links">
+    <section class="field-group">
+      <span class="fg-title">{$t('editor.item.field.links')}</span>
+      <div class="fg-body links">
         {#each linkRows as row, i (i)}
           <div class="link-row">
-            <select bind:value={row.siteValue} aria-label="Site">
+            <select bind:value={row.siteValue} aria-label={$t('editor.item.link.site.aria')}>
               {#each siteOptions as s (s.value)}
                 <option value={s.value}>{siteLabelFor(s.value)}</option>
               {/each}
             </select>
             <input
               type="url"
-              placeholder="https://…"
+              placeholder={$t('editor.item.link.url.placeholder')}
               bind:value={row.url}
-              aria-label="URL for {siteLabelFor(row.siteValue)}"
+              aria-label={$t('editor.item.link.url.aria', { site: siteLabelFor(row.siteValue) })}
             />
             <button
               type="button"
               class="remove"
-              aria-label="Remove link"
-              onclick={() => removeLinkRow(i)}>×</button
+              aria-label={$t('editor.item.link.remove.aria')}
+              onclick={() => removeLinkRow(i)}
             >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6 M10 11v6 M14 11v6"
+                />
+              </svg>
+            </button>
           </div>
         {/each}
-        <button
-          type="button"
-          class="add"
-          onclick={addLinkRow}
-          disabled={linkRows.length >= siteOptions.length}
-        >
-          ＋ Add link
-        </button>
+        {#if linkRows.length < siteOptions.length}
+          <!-- Once every available site has a row, the button has no
+               affordance left — hiding it is cleaner than rendering a
+               permanently-greyed-out control that just looks broken. -->
+          <div class="add-row">
+            <button type="button" class="add" onclick={addLinkRow}>
+              {$t('editor.item.link.add')}
+            </button>
+          </div>
+        {/if}
       </div>
-    </div>
+    </section>
     {#if error}<p class="err">{error}</p>{/if}
   </div>
   {#snippet footer()}
@@ -215,41 +238,60 @@
     color: var(--c-text-2);
     font-weight: var(--fw-medium);
   }
-  select {
-    background: var(--c-surface);
-    color: var(--c-text);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-md);
-    padding: var(--sp-2) var(--sp-3);
-    font-family: inherit;
-    font-size: var(--fs-md);
-    &:focus {
-      border-color: var(--c-accent);
-      outline: none;
-      box-shadow: 0 0 0 3px var(--c-accent-bg);
-    }
-  }
+  /* <select> base styling (chevron, padding, border) is in app.scss so
+   * every native select across the app shares one consistent look. */
   .err {
     margin: 0;
     color: var(--c-danger);
     font-size: var(--fs-sm);
   }
 
-  /* Per-site link rows: site picker | url input | remove */
-  .links {
+  /* Field-group: a labelled block whose contents are richer than a
+   * single Input (here: icon picker, links list). Title sits in
+   * semibold above its body, the body is a tinted container so the
+   * inner controls (multiple <select>s, <input>s, buttons) are
+   * obviously grouped under the title rather than reading as more
+   * top-level fields. Mirrors AdminSiteTab's avatar block — same
+   * pattern, but no description row since these editor fields are
+   * self-explanatory. */
+  .field-group {
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
   }
+  .fg-title {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--c-text);
+  }
+  .fg-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    background: var(--c-surface-2);
+    border-radius: var(--rd-md);
+  }
+
+  /* Per-site link rows: site picker | url input | remove
+   * (.links is the .fg-body container; flex layout comes from .fg-body) */
   .link-row {
     display: grid;
-    grid-template-columns: minmax(120px, 0.4fr) 1fr auto;
+    /* Track widths must mirror .add-row exactly so the "+ Add link"
+     * button below visually aligns with the site selects above. */
+    grid-template-columns: minmax(120px, 0.4fr) 1fr 32px;
     gap: var(--sp-2);
     align-items: stretch;
   }
   .link-row select,
   .link-row input {
     min-width: 0;
+    /* Force the select to fill its grid column. Without this, native
+     * <select> sizes to its longest <option>, leaving the column
+     * looking narrower than it really is — and the "+ Add link" button
+     * (which DOES fill the column) ends up visually wider than the
+     * site pickers above it. */
+    width: 100%;
   }
   .link-row input[type='url'] {
     background: var(--c-surface);
@@ -265,28 +307,46 @@
       box-shadow: 0 0 0 3px var(--c-accent-bg);
     }
   }
+  /* Borderless icon button — text-color shift only on hover.
+   * No background, no danger tint. Keeps the chrome quiet so the
+   * inputs themselves stay the visual focus. */
   .remove {
-    width: 36px;
+    width: 32px;
     height: 36px;
-    border: 1px solid var(--c-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
     background: transparent;
     color: var(--c-text-3);
     border-radius: var(--rd-md);
-    font-size: var(--fs-lg);
-    line-height: 1;
     cursor: pointer;
-    transition:
-      color var(--tr-fast),
-      border-color var(--tr-fast),
-      background var(--tr-fast);
+    transition: color var(--tr-fast);
     &:hover {
-      color: var(--c-danger);
-      border-color: var(--c-danger);
-      background: var(--c-danger-bg);
+      color: var(--c-text);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--c-accent);
+      outline-offset: 1px;
+    }
+    svg {
+      display: block;
     }
   }
+  /* Mirror .link-row's grid EXACTLY — including the trailing 32px
+   * column that holds the trash button — so all three tracks resolve
+   * to identical widths. Earlier the trailing column was `auto` with
+   * no content, collapsing to 0 and shifting the 0.4fr column wider
+   * than the site selects in .link-row. */
+  .add-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.4fr) 1fr 32px;
+    gap: var(--sp-2);
+  }
   .add {
-    align-self: flex-start;
+    /* Occupies column 1 (where site select sits in .link-row above). */
+    width: 100%;
     padding: var(--sp-2) var(--sp-3);
     background: transparent;
     color: var(--c-accent);
@@ -295,14 +355,13 @@
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
     cursor: pointer;
-    transition: background var(--tr-fast);
-    &:hover:not(:disabled) {
+    transition:
+      background var(--tr-fast),
+      color var(--tr-fast);
+    &:hover {
       background: var(--c-accent-bg);
     }
-    &:disabled {
-      color: var(--c-text-3);
-      border-color: var(--c-border);
-      cursor: not-allowed;
-    }
+    /* No :disabled state — the button is hidden via {#if} when no more
+     * sites are available, so we never render it in a saturated form. */
   }
 </style>

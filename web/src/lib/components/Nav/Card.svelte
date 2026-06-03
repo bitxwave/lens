@@ -182,7 +182,7 @@
    * cellShifts; this keeps the inner card/folder element free for the
    * jiggle and merge-state transforms (they don't compose otherwise). */
   .cell {
-    transition: transform var(--shift-duration, 220ms) cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform var(--shift-duration, 160ms) cubic-bezier(0.4, 0, 0.2, 1);
   }
   /* While this cell is the active drag source, hide it so the empty
    * slot is visible at the source's logical position. The clone follows
@@ -239,23 +239,31 @@
   .cell.merge-ready .folder {
     animation-play-state: paused;
   }
+  /* Armed: visible immediately. Was a subtle 2px halo that users only
+   * registered once ready promoted; bumped to 3px ring + light bloom
+   * so the "you're hovering for merge" signal lands at first frame. */
   .cell.merge-armed .card,
   .cell.merge-armed .folder {
-    box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.5);
-    transform: scale(1.02);
+    box-shadow:
+      0 0 0 3px rgba(99, 102, 241, 0.65),
+      0 0 14px rgba(99, 102, 241, 0.35);
+    transform: scale(1.04);
     transition:
-      box-shadow 0.15s ease,
-      transform 0.15s ease;
+      box-shadow 0.12s ease-out,
+      transform 0.12s ease-out;
   }
+  /* Ready: strongest form — high-contrast accent ring + larger bloom.
+   * The transition from armed→ready stays the same property set so
+   * the visual change reads as "intensifying" instead of restarting. */
   .cell.merge-ready .card,
   .cell.merge-ready .folder {
     box-shadow:
       0 0 0 4px var(--c-accent, #4a6cf7),
-      0 0 22px rgba(74, 108, 247, 0.55);
-    transform: scale(1.06);
+      0 0 28px rgba(99, 102, 241, 0.7);
+    transform: scale(1.07);
     transition:
-      box-shadow 0.15s ease,
-      transform 0.15s ease;
+      box-shadow 0.12s ease-out,
+      transform 0.12s ease-out;
   }
   .x-btn {
     position: absolute;
@@ -294,6 +302,22 @@
       object-fit: contain;
       border-radius: 12px;
     }
+  }
+  /* Dark theme: frosted glass over the indigo gradient instead of a
+   * flat surface tile. The translucent white + blur lifts the icon
+   * thumb (most icons are coloured logos on white/transparent, which
+   * read flat on the solid #161a24 surface). The 1px white inner
+   * border at low opacity is the same trick macOS uses on Big Sur+
+   * widget tiles. */
+  :global([data-theme='dark']) .card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+  :global([data-theme='dark']) .cell:not(.jiggle) .card:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
   }
   /* Hover lift only outside jiggle (jiggle owns the transform with its
    * own animation; an extra translate would fight the rotate keyframe). */

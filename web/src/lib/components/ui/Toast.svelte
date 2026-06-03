@@ -1,6 +1,7 @@
 <!-- web/src/lib/components/ui/Toast.svelte -->
 <script lang="ts">
   import { dismiss, type ToastIntent } from './toast';
+  import { t } from '$lib/i18n/store';
 
   interface Props {
     id: number;
@@ -13,7 +14,7 @@
 
 <div class="toast intent-{intent}" role="status">
   <span class="msg">{message}</span>
-  <button class="x" aria-label="Close" onclick={() => dismiss(id)}>×</button>
+  <button class="x" aria-label={$t('common.close')} onclick={() => dismiss(id)}>×</button>
 </div>
 
 <style lang="scss">

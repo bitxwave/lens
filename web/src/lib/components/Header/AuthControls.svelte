@@ -14,7 +14,7 @@
 </script>
 
 {#if $sessionStore.authed}
-  <IconButton label="Admin" onclick={() => goto('/admin')}>
+  <IconButton label={$t('header.admin')} onclick={() => goto('/admin')}>
     <svg
       width="18"
       height="18"

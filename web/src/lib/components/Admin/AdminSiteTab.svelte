@@ -93,15 +93,20 @@
       bind:value={siteName}
       placeholder={$t('admin.site.field.title.placeholder')}
     />
-    <div class="grp">
-      <span class="lbl">{$t('admin.site.field.avatar')}</span>
-      <IconSourcePicker
-        bind:kind={avatarKind}
-        bind:value={avatarValue}
-        allowedKinds={['asset', 'url']}
-      />
-      <small class="help">{$t('admin.site.field.avatar.help')}</small>
-    </div>
+    <section class="field-group">
+      <header class="fg-head">
+        <span class="fg-title">{$t('admin.site.field.avatar')}</span>
+        <small class="fg-help">{$t('admin.site.field.avatar.help')}</small>
+      </header>
+      <div class="fg-body">
+        <IconSourcePicker
+          bind:kind={avatarKind}
+          bind:value={avatarValue}
+          allowedKinds={['asset', 'url']}
+          hideKindLabel
+        />
+      </div>
+    </section>
     <Input
       label={$t('admin.site.field.copyright')}
       bind:value={siteCopyright}
@@ -140,19 +145,40 @@
     font-weight: var(--fw-semibold);
     color: var(--c-text);
   }
-  .grp {
+  /* Avatar field-group: this block has more chrome than a single Input
+   * (a kind select + URL/path input + upload button + thumbnail), so
+   * it gets a heading-and-body shape instead of a plain Input-style
+   * label. The title sits in semibold above its description, then the
+   * picker controls go in a tinted body — making it clear "site
+   * avatar" is the heading and everything below is its content. The
+   * surrounding fieldset border still groups it with the other
+   * branding fields so it doesn't read as a separate section. */
+  .field-group {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-1);
+    gap: var(--sp-2);
+  }
+  .fg-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .fg-title {
     font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--c-text);
   }
-  .lbl {
-    color: var(--c-text-2);
-    font-weight: var(--fw-medium);
-  }
-  .help {
+  .fg-help {
     font-size: var(--fs-xs);
     color: var(--c-text-3);
+  }
+  .fg-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    background: var(--c-surface-2);
+    border-radius: var(--rd-md);
   }
   .err {
     margin: 0;

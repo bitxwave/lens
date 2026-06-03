@@ -3,6 +3,7 @@
   import Input from '$lib/components/ui/Input.svelte';
   import { uploadIcon } from '$lib/api/icons';
   import { ApiError } from '$lib/api/client';
+  import { t } from '$lib/i18n/store';
   import type { IconKind } from '$lib/types/nav';
 
   interface Props {
@@ -12,13 +13,20 @@
     allowedKinds?: IconKind[];
     /** Show the "Upload local file" button under the URL mode. Default true. */
     showUpload?: boolean;
+    /** Hide the inner "Icon source" label above the kind <select>. Use
+     *  when the caller already provides a heading for the picker (e.g.
+     *  "Site avatar" in the admin form) and the inner label would
+     *  duplicate that heading. Default false to preserve the standalone
+     *  picker's existing layout. */
+    hideKindLabel?: boolean;
   }
 
   let {
     kind = $bindable('asset'),
     value = $bindable(''),
     allowedKinds = ['asset', 'url', 'auto-favicon'],
-    showUpload = true
+    showUpload = true,
+    hideKindLabel = false
   }: Props = $props();
 
   /** List of bundled asset filenames; loaded lazily on first mount. */
@@ -52,7 +60,7 @@
       kind = 'url';
       value = path;
     } catch (err) {
-      uploadError = err instanceof ApiError ? err.message : 'Upload failed';
+      uploadError = err instanceof ApiError ? err.message : $t('editor.icon.upload.failed');
     } finally {
       uploading = false;
     }
@@ -61,16 +69,20 @@
 
 {#if allowedKinds.length > 1}
   <label class="grp">
-    <span class="lbl">Icon source</span>
+    {#if !hideKindLabel}
+      <span class="lbl">{$t('editor.icon.source')}</span>
+    {/if}
     <select bind:value={kind}>
       {#if allowedKinds.includes('asset')}
-        <option value="asset">Pick a bundled icon</option>
+        <option value="asset">{$t('editor.icon.kind.asset')}</option>
       {/if}
       {#if allowedKinds.includes('url')}
-        <option value="url">Custom image URL{showUpload ? ' or upload' : ''}</option>
+        <option value="url"
+          >{showUpload ? $t('editor.icon.kind.urlOrUpload') : $t('editor.icon.kind.url')}</option
+        >
       {/if}
       {#if allowedKinds.includes('auto-favicon')}
-        <option value="auto-favicon">Auto from website (host)</option>
+        <option value="auto-favicon">{$t('editor.icon.kind.autoFavicon')}</option>
       {/if}
     </select>
   </label>
@@ -79,7 +91,8 @@
 {#if kind === 'asset'}
   <div class="grp">
     <span class="lbl">
-      Bundled icons {#if assetIcons.length}({assetIcons.length}){/if}
+      {$t('editor.icon.bundled.label')}
+      {#if assetIcons.length}({assetIcons.length}){/if}
     </span>
     <div class="icon-picker">
       {#each assetIcons as f (f)}
@@ -95,14 +108,14 @@
       {/each}
     </div>
     {#if value}
-      <span class="picked">Selected: <code>{value}</code></span>
+      <span class="picked">{$t('editor.icon.selected')} <code>{value}</code></span>
     {/if}
   </div>
 {:else if kind === 'url'}
   <Input
-    label="Image URL or path"
+    label={$t('editor.icon.url.label')}
     bind:value
-    placeholder="/icons/foo.png or https://example.com/logo.png"
+    placeholder={$t('editor.icon.url.placeholder')}
   />
   {#if showUpload}
     <div class="upload">
@@ -119,7 +132,7 @@
         onclick={() => fileInput?.click()}
         disabled={uploading}
       >
-        {#if uploading}Uploading…{:else}＋ Upload local file{/if}
+        {uploading ? $t('editor.icon.upload.uploading') : $t('editor.icon.upload.button')}
       </button>
       {#if uploadError}<span class="err">{uploadError}</span>{/if}
     </div>
@@ -134,7 +147,11 @@
     </div>
   {/if}
 {:else if kind === 'auto-favicon'}
-  <Input label="Website host (e.g. example.com)" bind:value placeholder="example.com" />
+  <Input
+    label={$t('editor.icon.host.label')}
+    bind:value
+    placeholder={$t('editor.icon.host.placeholder')}
+  />
 {/if}
 
 <style lang="scss">
@@ -148,20 +165,7 @@
     color: var(--c-text-2);
     font-weight: var(--fw-medium);
   }
-  select {
-    background: var(--c-surface);
-    color: var(--c-text);
-    border: 1px solid var(--c-border);
-    border-radius: var(--rd-md);
-    padding: var(--sp-2) var(--sp-3);
-    font-family: inherit;
-    font-size: var(--fs-md);
-    &:focus {
-      border-color: var(--c-accent);
-      outline: none;
-      box-shadow: 0 0 0 3px var(--c-accent-bg);
-    }
-  }
+  /* <select> base styling lives in app.scss (shared chevron + padding). */
   .icon-picker {
     display: grid;
     grid-template-columns: repeat(auto-fill, 56px);

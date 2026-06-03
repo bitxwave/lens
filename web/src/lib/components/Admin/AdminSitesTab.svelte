@@ -66,6 +66,10 @@
   }
 
   function startEdit(s: Site) {
+    /* Mutually exclusive with the create form — only one row can be in
+     * an editable state at a time. Without this, clicking Edit while a
+     * create row is open (or vice versa) leaves both forms on screen. */
+    creating = false;
     editingId = s.id;
     editName = s.name;
     editDefault = s.isDefault;
@@ -119,6 +123,8 @@
   }
 
   function startCreate() {
+    /* Mutually exclusive with row-edit (see startEdit). */
+    editingId = null;
     creating = true;
     newName = '';
     newDefault = false;
@@ -153,7 +159,7 @@
 <div class="tab">
   <header class="head">
     <h3>{$t('admin.sites.head.title')} <small>({sites.length})</small></h3>
-    {#if !creating}
+    {#if !creating && editingId === null}
       <Button intent="primary" size="sm" onclick={startCreate}
         >{$t('admin.sites.action.new')}</Button
       >
@@ -208,18 +214,28 @@
         {:else}
           <span class="handle" class:disabled={dragDisabled} aria-hidden="true">⋮⋮</span>
           <div class="info">
-            <strong>{s.name}</strong>
-            {#if s.isDefault}<span class="badge">{$t('admin.sites.badge.default')}</span>{/if}
+            <span class="name-cell">
+              <strong>{s.name}</strong>
+              {#if s.isDefault}
+                <span class="badge">{$t('admin.sites.badge.default')}</span>
+              {/if}
+            </span>
             <span class="count"
               >{$t('admin.sites.linkCount', { count: linkCountBySite.get(s.value) ?? 0 })}</span
             >
           </div>
           <div class="row-actions">
-            <Button intent="ghost" size="sm" onclick={() => startEdit(s)}
-              >{$t('admin.sites.action.edit')}</Button
+            <Button
+              intent="ghost"
+              size="sm"
+              disabled={creating || editingId !== null}
+              onclick={() => startEdit(s)}>{$t('admin.sites.action.edit')}</Button
             >
-            <Button intent="ghost" size="sm" onclick={() => remove(s)}
-              >{$t('admin.sites.action.delete')}</Button
+            <Button
+              intent="ghost"
+              size="sm"
+              disabled={creating || editingId !== null}
+              onclick={() => remove(s)}>{$t('admin.sites.action.delete')}</Button
             >
           </div>
         {/if}
@@ -298,17 +314,29 @@
       opacity: 0.4;
     }
   }
+  /* Site row info — name+badge cell has a fixed min-width so the
+   * link-count text starts at the same x across every row regardless
+   * of site-name length or default-badge presence. Past the min-width
+   * the cell still grows to fit a longer name (count is pushed right
+   * uniformly). */
   .row .info {
     display: flex;
     align-items: baseline;
     gap: var(--sp-3);
-    flex-wrap: wrap;
+    .name-cell {
+      display: inline-flex;
+      align-items: baseline;
+      gap: var(--sp-2);
+      min-width: 200px;
+      flex-shrink: 0;
+    }
     strong {
       font-size: var(--fs-md);
     }
     .count {
       font-size: var(--fs-xs);
       color: var(--c-text-3);
+      white-space: nowrap;
     }
     .badge {
       font-size: var(--fs-xs);
@@ -321,16 +349,18 @@
   }
   .row-actions {
     display: flex;
+    align-items: center;
     gap: var(--sp-2);
   }
-  /* Match input control's vertical position: the Input has a label
-   * above it, so its actual control box sits ~20px below the cell's
-   * top edge. With grid `align-items: end` on the parent, this cell
-   * is positioned at the row bottom, so the row of buttons lands at
-   * the same baseline as the input boxes themselves. */
+  /* In edit/create rows the parent uses `align-items: end` so the
+   * action cell ends flush with the Input control's bottom edge.
+   * Reserve the same 36px control height as .def + center children
+   * so the buttons (which are ~28px tall) sit centred against the
+   * input box's vertical mid-line, not riding either edge. */
   .row.editing .row-actions,
   .create-row .row-actions {
-    padding-bottom: 0;
+    height: 36px;
+    align-items: center;
   }
   .def {
     display: inline-flex;

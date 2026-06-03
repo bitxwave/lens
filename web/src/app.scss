@@ -22,8 +22,20 @@ body {
   );
 }
 
+/* Dark gradient — deep indigo wash with a near-black core. The angle
+ * + the very dark right-bottom let the brighter indigo show only as a
+ * slight halo behind the cards, instead of saturating the full canvas.
+ * This is what makes the cards read as "lifted on glass" rather than
+ * "flat tiles on a flat purple wall". */
 [data-theme='dark'] {
-  --gradient-bg: linear-gradient(to right bottom, #2a0f25 0%, #0e1430 100%);
+  --gradient-bg:
+    radial-gradient(
+      ellipse 120% 80% at 30% 0%,
+      rgba(67, 56, 202, 0.55) 0%,
+      rgba(30, 27, 75, 0.5) 35%,
+      transparent 70%
+    ),
+    linear-gradient(to bottom, #0c0e1a 0%, #07080f 100%);
 }
 
 #root {
@@ -41,6 +53,37 @@ body {
  * leaking the consumer-facing aesthetic into the management UI. */
 body.admin-route #root {
   background: var(--c-bg);
+}
+
+/* Form controls — global <select> base.
+ * Native chevrons differ across OS/browser and crowd against the longest
+ * option (esp. macOS Safari/Chrome). We replace it with a self-painted
+ * SVG via background-image so size + offset are predictable everywhere.
+ * Component-scoped styles can still override (.link-row forces width:100%
+ * for grid layouts), but the chevron + spacing are shared. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: var(--rd-md);
+  padding: var(--sp-2) var(--sp-6) var(--sp-2) var(--sp-3);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2376767a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right var(--sp-3) center;
+  cursor: pointer;
+  &:focus {
+    border-color: var(--c-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--c-accent-bg);
+  }
+}
+[data-theme='dark'] select {
+  /* lighter chevron stroke for legibility on dark surface */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a8a8b0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
 }
 
 /* Scrollbar — token-driven, theme-aware */
