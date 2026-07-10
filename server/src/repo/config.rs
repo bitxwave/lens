@@ -60,6 +60,14 @@ impl ConfigRepo for SqlxConfigRepo {
     }
 
     async fn upsert(&self, key: &str, value: &str) -> Result<()> {
+        // NOTE: the SQL string in `upsert_many` below must remain
+        // byte-for-byte identical to this one so sqlx's compile-time
+        // query cache treats them as a single query — sqlx hashes the
+        // literal verbatim (whitespace included) and generates one
+        // `.sqlx/query-*.json` per unique hash. Two inline copies with
+        // divergent indentation produce two JSONs for the same
+        // statement. The macro only accepts a string literal (not a
+        // `const`), so we can't factor it out cleanly.
         sqlx::query!(
             "INSERT INTO config (key, value) VALUES (?, ?)
              ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -74,9 +82,11 @@ impl ConfigRepo for SqlxConfigRepo {
     async fn upsert_many(&self, pairs: &[(&str, &str)]) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         for (k, v) in pairs {
+            // Keep this literal identical to the one in `upsert` above —
+            // see the note there.
             sqlx::query!(
                 "INSERT INTO config (key, value) VALUES (?, ?)
-                 ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+             ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 k,
                 v
             )
