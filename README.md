@@ -1,198 +1,235 @@
-# Navigation website
+# Lens
 
-A static navigation website written in svelte3.
+A self-hostable navigation/bookmark dashboard with a Rust backend (Axum + SQLite),
+a SvelteKit SPA frontend, and an inline editor for the admin. Each nav item can
+expose multiple URLs grouped under user-defined "sites" (think work / home,
+or shanghai / beijing) — switch the active site from the header and every card
+re-points to its matching URL without changing the layout.
 
-> Note: UI Design are referenced from other sites
+The home view is a macOS Launchpad-style paginated grid: cards reflow into pages
+sized from the live container rect, the page turner runs as a hand-rolled
+`translate3d` track (1:1 finger tracking on trackpad, snap-on-release on mouse
+wheel, dot indicator + ←/→ keyboard), and `jiggle mode` enables drag-to-reorder,
+drag-into-folder, and item-on-item auto-folder gestures.
 
-## Preview
+The Rust binary serves both the JSON API (`/api/*`) and the SvelteKit SPA static
+assets in a single process — no separate web server or reverse proxy required.
+Designed for intranet self-hosting; expose via your network's existing TLS
+terminator if needed.
 
-- Desktop
-
-  ![Desktop website](./snapshot_desktop.png)
-
-  - Site Switch
-
-    ![Desktop Site Switch](./snapshot_desktop_site_switch.png)
-
-- H5
-
-  ![H5 Website](./snapshot_h5.png)
-
-  - Site Switch
-
-    ![H5 Site Switch](./snapshot_h5_site_switch.png)
-
-## Pre-install
-
-- [Install git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-  
-- [Install pnpm](https://www.pnpm.cn/installation)
-
-- Clone the project to local
-  
-  ```bash
-  git clone https://github.com/picopock/navigation_website.git
-  ```
-
-- Install dependencies
-
-  ```bash
-  pnpm install
-  ```
-
-## Developing
-
-Once you've created a project and installed dependencies with `pnpm`, start a development server:
+## Quickstart (Docker)
 
 ```bash
-pnpm dev --host
-
-# or start the server and open the app in a new browser tab
-pnpm dev -- --open
+docker run -d \
+  --name lens \
+  -p 8080:8080 \
+  -v ./data:/app/data \
+  -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
+  lens:latest
 ```
 
-## Customizing
+Visit http://localhost:8080. Click **Log in** in the top-right, enter your password,
+then click **Edit** to add/remove nav items inline.
 
-Customize your navigation page
+See [Deployment](#deployment) for compose, custom port, and data persistence options.
 
-- Customize by modify the build product
-- Customize by modify the source code
+## Project layout
 
-  - Customize website information
+| Path | Purpose |
+|---|---|
+| `web/` | SvelteKit 2 + Svelte 5 SPA. `pnpm dev` for local dev (proxies `/api` to `:8080`). |
+| `server/` | Rust binary (`lens`). `cargo run` for local dev (default port 8080). |
+| `tests/` | Playwright e2e specs covering read + login + create. |
+| `scripts/` | `docker-smoke.sh`, `e2e.sh`, `dump-bootstrap.mjs`. |
+| `docs/superpowers/` | Design specs and implementation plans. |
+| `Dockerfile` | Multi-stage build → distroless single image. |
+| `docker-compose.yml` | Sample single-service compose for intranet self-host. |
 
-    The website information is saved in `src/lib/constants/siteInfo.ts` file
+## Local development
 
-    | Name                  | Desc                                             |
-    | :-------------------- | :----------------------------------------------- |
-    | `siteName`            | Site name                                        |
-    | `siteCopyright`       | Site copyright information                       |
-    | `siteICPFiling`       | Site ICP filing information                      |
-    | `siteICPFilingURL`    | The link of ICP filing query website             |
-    | `sitePoliceFiling`    | Public security filing information of website    |
-    | `sitePoliceFilingURL` | The link of Public security filing query website |
+Backend (terminal A):
 
-  - Customize navigation information
+```bash
+cd server
+cargo run            # listens on :8080
+```
 
-    The navigation information is saved in `src/lib/constants/nav.ts` file
+On first boot, an admin password is generated and printed; it's also written to
+`server/dev-data/INITIAL_PASSWORD.txt` (auto-deleted after the first password
+change via the UI).
 
-    - Site List Definition
+Frontend (terminal B):
 
-      | Site Item Field | Type   | Desc                                                           |
-      | :-------------- | :----- | :------------------------------------------------------------- |
-      | `name`          | string | Site name                                                      |
-      | `value`         | string | Value of site. It will be use as key field to define site link |
+```bash
+cd web
+pnpm install         # uses pinned pnpm 10 via packageManager
+pnpm dev             # listens on :5173, proxies /api to :8080
+```
 
-      - Default Site Definition
+Run unit tests:
 
-        - `defaultSiteIndex`
-    
-          The default site index of site list. Start index is `0`, not `1`. Default value is `0`.
+```bash
+cd web && pnpm test:unit
+cd server && SQLX_OFFLINE=true cargo test
+```
 
-    - Nav List Definition
+Run e2e (requires Docker):
 
-      | Nav Item Field | Type   | Desc                                                       |
-      | :------------- | :----- | :--------------------------------------------------------- |
-      | `name`         | string | Navigation item name                                       |
-      | `link`         | object | The link of all site defined here                          |
-      | `source`       | string | Navigation item logo. support http(s)、image or svg format |
+```bash
+bash scripts/e2e.sh
+```
 
-      > Note： if the `source` field is not `http(s)` format, such as `jellyfin.svg`, you will need to put `jellyfin.svg` resource into  `static/navIcons/` folder.
+## Build
 
-      > Note: if the link of current site is not defined under the `link` field, the nav item will not be show.
+### Frontend (SvelteKit SPA)
 
-    - example
+```bash
+cd web
+pnpm install
+pnpm build           # outputs to web/build (static assets)
+```
 
-      ```ts
-      export const siteList: ISite[] = [
-        { name: '上海', value: 'shangHai' },
-        { name: '北京', value: 'beiJing' },
-        { name: '广州', value: 'guangZhou' },
-        { name: '深圳', value: 'shenZhen' },
-      ];
+### Backend (Rust release binary)
 
-      export const navList: INavItem[] = [
-        {
-          name: 'RouterOS',
-          link: {
-            shangHai: 'http://10.0.0.1',
-            beiJing: 'http://10.1.0.1'
-          },
-          source: 'routerOS.png'
-        },
-        {
-          name: 'OpenWRT',
-          link: {
-            shangHai: 'http://10.0.0.2',
-            beiJing: 'http://10.1.0.2'
-          },
-          source: 'openWRT.png'
-        },
-        {
-          name: 'Esxi',
-          link: {
-            shangHai: 'http://10.0.0.3',
-            beiJing: 'http://10.1.0.3',
-            guangZhou: 'http://10.2.0.3',
-          },
-          source: 'esxi.png'
-        },
-        {
-          name: 'K2P',
-          link: {
-            shangHai: 'http://10.0.0.4',
-            beiJing: 'http://10.1.0.4',
-            shenZhen: 'http://10.2.0.4',
-          },
-          source: 'phicomm.png'
-        }
-      ];
-      ```
+```bash
+cd server
+SQLX_OFFLINE=true cargo build --release --bin lens
+# binary at server/target/release/lens
+```
 
-- Customize Avatar
+Run it with the SPA build directly (no Docker):
 
-  - put resource into `static/` folder.
+```bash
+cd server
+STATIC_DIR=../web/build DATA_DIR=./prod-data \
+  ./target/release/lens
+```
 
-  - rename resource with `avatar.png`.
-  
-## Building
+### Docker image
 
-- Build locally
+```bash
+docker build -t lens:latest .
+```
 
-  To create a production version of your app:
+The multi-stage `Dockerfile`:
+1. builds the SPA with `node:20-alpine` + pnpm,
+2. builds the Rust binary with `rust:1.88-slim` (uses `SQLX_OFFLINE=true` against
+   the committed `server/.sqlx/` cache),
+3. assembles a distroless `gcr.io/distroless/cc-debian12` runtime (~70 MB) with
+   the binary at `/usr/local/bin/lens` and SPA assets at `/app/static`.
 
-  ```bash
-  pnpm build
-  ```
+Smoke-test the freshly built image:
 
-  You can preview the production build with `pnpm preview`.
+```bash
+bash scripts/docker-smoke.sh
+```
 
-- [Build with github action](https://github.com/picopock/navigation_website/actions)
+## Deployment
 
-## Deploying
+Single-process, single-port. Mount one volume for the SQLite DB + uploaded icons.
 
-- Deploy with static resource server
-  
-  when you run command `pnpm build`, the compile result will be put into `build` folder. Copy all files in the `build` folder to the static resource server.
+### docker compose (recommended)
 
-- Deploy with docker
+```bash
+PORT=8080 BOOTSTRAP_ADMIN_PASSWORD=changeme docker compose up -d
+```
 
-  - The docker image uses nginx as the static resource server. The nginx configuration file is in `config/nginx/` folder.
+`docker-compose.yml` publishes `${PORT}:${PORT}` and bind-mounts `./data` to
+`/app/data`. To switch ports later, change `PORT` and `up -d` again — both the
+host mapping and the container's listening port follow the same variable.
 
-    By default, this nginx is in https mode, and the http(80) request will be redirect to https. You need put the certificate file into `config/nginx/cert/` folder and update `nginx.conf` as follow:
+### docker run
 
-    ```conf
-    ssl_certificate               /etc/nginx/cert/<cert name>.pem;
-    ssl_certificate_key           /etc/nginx/cert/<cert name>.key;
-    ```
+```bash
+docker run -d --name lens \
+  -e PORT=9090 -p 9090:9090 \
+  -v ./data:/app/data \
+  -e BOOTSTRAP_ADMIN_PASSWORD=changeme \
+  lens:latest
+```
 
-    > Note: `<cert name>` will be replace with your certificate name.
+If you keep the default `PORT=8080` baked into the image, just publish
+`-p <host>:8080`.
 
-  - Build docker image based on `Dockerfile`.
-  - Pull docker iamge to your machine
-  - Run container whit docker command
-  
-    ```sh
-    // eg.
-    // Need to be update according to individual circumstances
-    docker run -d --restart=always --name navigation_website_<version> -p 8080:80 -p 8443:443 xxxx.com/xxxx/navigation_website:<version>
-    ```
+### Data persistence
+
+Everything stateful lives under `DATA_DIR` (defaults to `/app/data` in Docker):
+
+- `data.db` — SQLite (WAL); contains nav items, sites, groups, admin password hash
+- `icons/` — proxied/uploaded favicon cache (7-day TTL refresh)
+- `INITIAL_PASSWORD.txt` — generated on first boot if `BOOTSTRAP_ADMIN_PASSWORD`
+  is unset; auto-deleted after the first password change via the UI
+
+Back up the volume to back up the whole instance.
+
+### Behind a reverse proxy (optional)
+
+For HTTPS or path prefixing, front `lens` with any reverse proxy (Caddy,
+nginx, Traefik, Cloudflare Tunnel, Tailscale Funnel...). When TLS is terminated
+upstream, set `SECURE_COOKIES=true` so session cookies are marked `Secure`.
+
+## Configuration (env)
+
+| Var | Default | Notes |
+|---|---|---|
+| `PORT` | `8080` | TCP port |
+| `DATA_DIR` | `/app/data` (Docker) / `./dev-data` (cargo) | SQLite + uploads + INITIAL_PASSWORD |
+| `STATIC_DIR` | `/app/static` (Docker) / `../web/build` (cargo) | SvelteKit build output |
+| `BOOTSTRAP_ADMIN_PASSWORD` | (unset) | First boot only; otherwise random + file |
+| `SECURE_COOKIES` | `false` | Set `true` only when serving over HTTPS |
+| `RUST_LOG` | `info,sqlx=warn,tower_http=info` | tracing-subscriber filter |
+
+## Resetting the admin password
+
+```bash
+docker exec -it lens lens reset-password --password=<new>
+# or interactively (the binary prompts)
+```
+
+This invalidates all sessions and removes any leftover `INITIAL_PASSWORD.txt`.
+
+## Architecture
+
+See `docs/superpowers/specs/2026-05-19-rust-navigation-platform-design.md` for the
+full design. Briefly:
+
+- **Frontend**: Svelte 5 (runes) + SvelteKit 2, no UI library — design tokens and
+  10 hand-built primitives under `web/src/lib/components/ui/`. `apiClient` validates
+  every response against zod schemas mirroring the backend types. Self-implemented
+  i18n (~80 lines), no library. The Launchpad pager (`web/src/routes/+page.svelte`)
+  owns horizontal scroll itself — `translate3d` track + rAF settle curve — instead
+  of native `overflow-x: auto + scroll-snap`, so the same animation loop covers
+  in-gesture pan, post-release settle, drag-to-edge auto page turn, and trackpad
+  inertial multi-page commit. Drag-and-drop is `dragGrid` action in
+  `web/src/lib/util/dragGrid.ts`, with merge / reorder / spring-load resolved
+  against a layout cache rebuilt on spring-load and edge-pan.
+- **Backend**: Axum 0.7 + SQLx (SQLite WAL). 3NF schema. Single-admin auth
+  (bcrypt + signed cookie session via `tower-sessions`). CRUD endpoints behind a
+  `RequireAuth` extractor. Favicon proxy with 7-day disk cache. CLI subcommand
+  for password reset.
+- **Deploy**: Multi-stage Dockerfile produces a distroless image (~70 MB). The
+  Rust binary serves both the SPA (`tower-http::ServeDir` with SPA fallback) and
+  `/api/*`.
+
+## Roadmap
+
+Shipped since the original Plans 1–5:
+
+- ✅ Launchpad-style paginated home with horizontal page turn (trackpad / wheel /
+  pointer / ←→ keyboard) and dot indicator
+- ✅ Jiggle-mode drag-and-drop: reorder cards, drag-into-folder, item-on-item
+  auto-folder, edge-pan to adjacent page during a drag, spring-loaded folders
+- ✅ Inline folder expand panel (backdrop blur + click-outside dismiss)
+- ✅ Dedicated admin dashboard layout (separate from the public Launchpad chrome)
+
+Still ahead:
+
+- Full management UI for groups, sites, tags (currently editable via API only)
+- Site settings dialog (site name, avatar upload, ICP filings, default theme)
+- Multi-user / OAuth / audit log
+- Real-time multi-device sync (SSE)
+- PWA / offline
+
+## License
+
+MIT.

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE cards SET sort_order=-100000 WHERE id=?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "f43554f30f68272d6a3dce26159d4de91593e7284c4c075a4db401aeb19cfe59"
+}

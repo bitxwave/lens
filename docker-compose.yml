@@ -1,0 +1,17 @@
+# docker-compose.yml — single-service self-host (intranet / no TLS).
+# Override the listening port with `PORT=9090 docker compose up -d`.
+services:
+  lens:
+    build: .
+    image: lens:latest
+    container_name: lens
+    restart: unless-stopped
+    environment:
+      PORT: ${PORT:-8080}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      RUST_LOG: ${RUST_LOG:-info,sqlx=warn,tower_http=info}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - ./data:/app/data

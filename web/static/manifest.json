@@ -1,0 +1,18 @@
+{
+  "short_name": "小站导航",
+  "name": "XXXX 的小站导航",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#adafd9",
+  "theme_color": "#adafd9",
+  "shortcuts": [],
+  "description": "XXXX 的小站导航"
+}

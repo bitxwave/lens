@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO cards (kind, parent_id, sort_order, name, slug, created_at, updated_at) VALUES ('folder', NULL, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "7e5d7bd143f66fa9ab84bd2d9ee29041eb22ffee582e5b71b9f40c0d05f52bd2"
+}

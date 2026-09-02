@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO card_links (card_id, site_id, url) SELECT ?, sites.id, ? FROM sites WHERE sites.value = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "7ef4f62fcea349b04f747fb0b14ef524e2ee5704485176ddce92c04b6b893c7b"
+}

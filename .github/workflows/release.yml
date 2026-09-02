@@ -9,35 +9,313 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  # The SvelteKit output is static HTML/JS/CSS with no native code, so it
+  # is identical on every OS. Build it once here and hand the same bundle
+  # to each platform job rather than rebuilding it five times.
+  web:
+    name: Build web bundle
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup Node Version 20
-        uses: actions/setup-node@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          node-version: '20.x'
+          version: 10
 
-      - name: Install And Build
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install web deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        working-directory: web
+        run: pnpm build
+
+      - name: Upload web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: web/build
+          if-no-files-found: error
+          retention-days: 1
+
+  binaries:
+    name: Build ${{ matrix.slug }}
+    needs: [web]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - slug: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          # 32-bit ARM has no GitHub runner, so it is cross-compiled from
+          # x86_64 with the Debian eabihf toolchain. `cc` needs the same
+          # cross gcc for ring's and SQLite's C sources, hence the CC_*
+          # env below. It must be crossbuild-essential-armhf, not the bare
+          # gcc-arm-linux-gnueabihf: the latter ships the compiler without
+          # the armhf libc headers, so arm-linux-gnueabihf-gcc falls back
+          # to the host's /usr/include and dies on a missing
+          # bits/libc-header-start.h while building ring's curve25519.c.
+          - slug: linux-armv7
+            runner: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            apt: crossbuild-essential-armhf
+          - slug: macos-aarch64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+          # Intel macOS is cross-compiled on the Apple-Silicon runner: the
+          # macOS SDK ships both slices, so this needs no Intel runner —
+          # which also sidesteps the churn around the macos-13 label.
+          - slug: macos-x86_64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+          - slug: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe: .exe
+          # ARM64 Windows, cross-compiled with the ARM64 MSVC toolchain
+          # that ships in the runner's Visual Studio install.
+          - slug: windows-aarch64
+            runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            exe: .exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cross linker
+        if: matrix.apt
         run: |
-          pnpm install
-          pnpm build
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ${{ matrix.apt }}
 
-      - name: Get Version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
-      - name: Package files
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+          key: ${{ matrix.slug }}
+
+      - name: Download web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: web/build
+
+      - name: Build server (release)
+        working-directory: server
+        env:
+          SQLX_OFFLINE: 'true'
+          # Target-scoped, so these are inert on every other matrix leg.
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+          CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
+        run: cargo build --release --bin lens --target ${{ matrix.target }}
+
+      - name: Assemble dist tree
+        shell: bash
         run: |
-          mv ./build ./navigation-website-${{ steps.get_version.outputs.VERSION }}
-          tar -zcvf navigation-website-${{ steps.get_version.outputs.VERSION }}.tar.gz ./navigation-website-${{ steps.get_version.outputs.VERSION }}
-          zip -r navigation-website-${{ steps.get_version.outputs.VERSION }}.zip ./navigation-website-${{ steps.get_version.outputs.VERSION }}
+          set -eu
+          VERSION="${GITHUB_REF#refs/tags/}"
+          DIST="lens-$VERSION-${{ matrix.slug }}"
+          mkdir -p "dist/$DIST/static"
+          cp "server/target/${{ matrix.target }}/release/lens${{ matrix.exe }}" \
+             "dist/$DIST/lens${{ matrix.exe }}"
+          cp -r web/build/. "dist/$DIST/static/"
+          cp README.md "dist/$DIST/README.md"
+          echo "DIST=$DIST" >> "$GITHUB_ENV"
+
+      # tar.gz is the portable unix form; Windows gets a zip instead,
+      # built with Compress-Archive because windows-latest carries no
+      # `zip` CLI.
+      - name: Pack (unix)
+        if: runner.os != 'Windows'
+        working-directory: dist
+        run: |
+          set -eu
+          tar -zcf "$DIST.tar.gz" "$DIST"
+          zip -qr "$DIST.zip" "$DIST"
+
+      - name: Pack (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: dist
+        run: Compress-Archive -Path "$env:DIST" -DestinationPath "$env:DIST.zip"
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.slug }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish GitHub release
+    needs: [binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all dist archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: List archives
+        run: ls -la dist
 
       - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          files: ./navigation-website-*
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
           draft: false
+
+  # One job per architecture, each on a NATIVE runner. Building arm64
+  # under QEMU on an amd64 runner makes the Rust release compile ~10x
+  # slower and risks the 6h job cap, so we pay for two jobs instead and
+  # stitch the results into one manifest list below.
+  docker:
+    name: Build image (${{ matrix.slug }})
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            slug: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: arm64
+          # 32-bit ARM (Raspberry Pi 2/3, older NAS boxes). GitHub has no
+          # 32-bit ARM runner, so this rides the arm64 one: armv7 is in the
+          # same family, so Docker may execute it natively via AArch32, and
+          # binfmt/QEMU below covers the case where it cannot.
+          - platform: linux/arm/v7
+            runner: ubuntu-24.04-arm
+            slug: armv7
+            qemu: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup QEMU
+        if: matrix.qemu
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Push without a tag: the digest is recorded and the manifest job
+      # attaches every human-readable tag once both arches have landed.
+      - name: Build & push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          # Per-arch cache scope; a shared scope would have the two jobs
+          # evicting each other's layers on every run.
+          cache-from: type=gha,scope=${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
+
+      - name: Export digest
+        run: |
+          set -eu
+          mkdir -p "${{ runner.temp }}/digests"
+          digest='${{ steps.build.outputs.digest }}'
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.slug }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-manifest:
+    name: Push multi-arch manifest
+    runs-on: ubuntu-latest
+    needs: [docker]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # Exact version plus `latest` only. A floating {{major}}.{{minor}}
+          # tag was deliberately dropped: it shares a manifest digest with
+          # the exact tag, which on GHCR makes the two inseparable — the
+          # Packages API deletes whole versions, not individual tags, so a
+          # stale `1.0` could not be retired without taking `1.0.0` and
+          # `latest` down with it.
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Create manifest list & push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          set -eu
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
+
+      - name: Inspect
+        run: |
+          docker buildx imagetools inspect \
+            ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}

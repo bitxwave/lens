@@ -1,0 +1,367 @@
+<script lang="ts">
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import Input from '$lib/components/ui/Input.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import IconSourcePicker from './IconSourcePicker.svelte';
+  import { t } from '$lib/i18n/store';
+  import { navDataStore } from '$lib/stores/navData';
+  import { createCard, patchCard } from '$lib/api/cards';
+  import type { CardPayload, CardPatch } from '$lib/types/card';
+  import { toast } from '$lib/components/ui/toast';
+  import { ApiError } from '$lib/api/client';
+  import type { Card } from '$lib/types/card';
+
+  interface Props {
+    open: boolean;
+    /** When set, dialog is in edit mode for this item; null = create. */
+    target: Card | null;
+    /** Initial parent (folder id) for create mode. */
+    defaultParentId?: number | null;
+    /** Fires after a successful create + data refetch. Lets the caller
+     *  scroll the new card into view (e.g. jump pager to the last page). */
+    onCreated?: (card: Card) => void;
+  }
+
+  let { open = $bindable(false), target, defaultParentId = null, onCreated }: Props = $props();
+
+  // Form state
+  let name = $state('');
+  let parentId = $state<number | null>(null);
+  let iconKind = $state<'asset' | 'url' | 'auto-favicon'>('asset');
+  let iconValue = $state('');
+  /** Each row = (site value, url). Empty rows are dropped on submit. */
+  let linkRows = $state<Array<{ siteValue: string; url: string }>>([]);
+  let submitting = $state(false);
+  let error = $state<string | null>(null);
+
+  let hydrated = $state(false);
+  $effect(() => {
+    if (open && !hydrated) {
+      if (target) {
+        name = target.name;
+        parentId = target.parentId ?? null;
+        iconKind = target.iconKind ?? 'asset';
+        iconValue = target.iconValue ?? '';
+        linkRows = Object.entries(target.links ?? {}).map(([siteValue, url]) => ({
+          siteValue,
+          url
+        }));
+      } else {
+        name = '';
+        parentId = defaultParentId;
+        iconKind = 'asset';
+        iconValue = '';
+        const firstSite = $navDataStore.bundle?.sites[0]?.value ?? '';
+        linkRows = firstSite ? [{ siteValue: firstSite, url: '' }] : [];
+      }
+      error = null;
+      hydrated = true;
+    } else if (!open) {
+      hydrated = false;
+    }
+  });
+
+  const siteOptions = $derived($navDataStore.bundle?.sites ?? []);
+
+  function siteLabelFor(value: string): string {
+    return siteOptions.find((s) => s.value === value)?.name ?? value;
+  }
+
+  function addLinkRow() {
+    const taken = new Set(linkRows.map((r) => r.siteValue));
+    const next = siteOptions.find((s) => !taken.has(s.value))?.value ?? siteOptions[0]?.value ?? '';
+    linkRows = [...linkRows, { siteValue: next, url: '' }];
+  }
+
+  function removeLinkRow(i: number) {
+    linkRows = linkRows.filter((_, idx) => idx !== i);
+  }
+
+  function buildLinks(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const row of linkRows) {
+      const url = row.url.trim();
+      if (!url || !row.siteValue) continue;
+      out[row.siteValue] = url;
+    }
+    return out;
+  }
+
+  async function submit() {
+    if (submitting) return;
+    error = null;
+    submitting = true;
+    try {
+      const links = buildLinks();
+      if (Object.keys(links).length === 0) {
+        throw new Error($t('editor.item.error.linkRequired'));
+      }
+      let createdCard: Card | null = null;
+      if (target) {
+        const patch: CardPatch = {
+          name: name.trim(),
+          iconKind,
+          iconValue: iconValue.trim(),
+          links
+        };
+        if ((target.parentId ?? null) !== parentId) {
+          patch.parentId = parentId;
+        }
+        await patchCard(target.id, patch);
+        toast.success($t('common.save') + ' ✓');
+      } else {
+        const payload: CardPayload = {
+          kind: 'item',
+          parentId,
+          name: name.trim(),
+          iconKind,
+          iconValue: iconValue.trim(),
+          links
+        };
+        createdCard = await createCard(payload);
+        toast.success($t('editor.item.new') + ' ✓');
+      }
+      await navDataStore.refetch();
+      open = false;
+      if (createdCard) onCreated?.(createdCard);
+    } catch (e) {
+      if (e instanceof ApiError) error = `${e.code}${e.message ? ': ' + e.message : ''}`;
+      else if (e instanceof Error) error = e.message;
+      else error = $t('error.unknown');
+    } finally {
+      submitting = false;
+    }
+  }
+
+  /** Folders the user can drop this item into. */
+  const folderOptions = $derived(
+    ($navDataStore.bundle?.cards ?? [])
+      .filter((c) => c.kind === 'folder')
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+  );
+</script>
+
+<Dialog bind:open title={target ? $t('common.edit') : $t('editor.item.new')} width="md">
+  <div class="form">
+    <Input label={$t('editor.item.field.name')} bind:value={name} />
+    <label class="grp">
+      <span class="lbl">{$t('editor.item.field.folder')}</span>
+      <select bind:value={parentId}>
+        <option value={null}>—</option>
+        {#each folderOptions as f (f.id)}
+          <option value={f.id}>{f.name}</option>
+        {/each}
+      </select>
+    </label>
+    <section class="field-group">
+      <span class="fg-title">{$t('editor.item.field.icon')}</span>
+      <div class="fg-body">
+        <IconSourcePicker bind:kind={iconKind} bind:value={iconValue} hideKindLabel />
+      </div>
+    </section>
+
+    <section class="field-group">
+      <span class="fg-title">{$t('editor.item.field.links')}</span>
+      <div class="fg-body links">
+        {#each linkRows as row, i (i)}
+          <div class="link-row">
+            <select bind:value={row.siteValue} aria-label={$t('editor.item.link.site.aria')}>
+              {#each siteOptions as s (s.value)}
+                <option value={s.value}>{siteLabelFor(s.value)}</option>
+              {/each}
+            </select>
+            <input
+              type="url"
+              placeholder={$t('editor.item.link.url.placeholder')}
+              bind:value={row.url}
+              aria-label={$t('editor.item.link.url.aria', { site: siteLabelFor(row.siteValue) })}
+            />
+            <button
+              type="button"
+              class="remove"
+              aria-label={$t('editor.item.link.remove.aria')}
+              onclick={() => removeLinkRow(i)}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 6h18 M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6 M10 11v6 M14 11v6"
+                />
+              </svg>
+            </button>
+          </div>
+        {/each}
+        {#if linkRows.length < siteOptions.length}
+          <!-- Once every available site has a row, the button has no
+               affordance left — hiding it is cleaner than rendering a
+               permanently-greyed-out control that just looks broken. -->
+          <div class="add-row">
+            <button type="button" class="add" onclick={addLinkRow}>
+              {$t('editor.item.link.add')}
+            </button>
+          </div>
+        {/if}
+      </div>
+    </section>
+    {#if error}<p class="err">{error}</p>{/if}
+  </div>
+  {#snippet footer()}
+    <Button intent="ghost" onclick={() => (open = false)}>{$t('common.cancel')}</Button>
+    <Button intent="primary" onclick={submit} loading={submitting} disabled={!name || !iconValue}>
+      {$t('common.save')}
+    </Button>
+  {/snippet}
+</Dialog>
+
+<style lang="scss">
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+  .grp {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .lbl {
+    color: var(--c-text-2);
+    font-weight: var(--fw-medium);
+  }
+  /* <select> base styling (chevron, padding, border) is in app.scss so
+   * every native select across the app shares one consistent look. */
+  .err {
+    margin: 0;
+    color: var(--c-danger);
+    font-size: var(--fs-sm);
+  }
+
+  /* Field-group: a labelled block whose contents are richer than a
+   * single Input (here: icon picker, links list). Title sits in
+   * semibold above its body, the body is a tinted container so the
+   * inner controls (multiple <select>s, <input>s, buttons) are
+   * obviously grouped under the title rather than reading as more
+   * top-level fields. Mirrors AdminSiteTab's avatar block — same
+   * pattern, but no description row since these editor fields are
+   * self-explanatory. */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .fg-title {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--c-text);
+  }
+  .fg-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    background: var(--c-surface-2);
+    border-radius: var(--rd-md);
+  }
+
+  /* Per-site link rows: site picker | url input | remove
+   * (.links is the .fg-body container; flex layout comes from .fg-body) */
+  .link-row {
+    display: grid;
+    /* Track widths must mirror .add-row exactly so the "+ Add link"
+     * button below visually aligns with the site selects above. */
+    grid-template-columns: minmax(120px, 0.4fr) 1fr 32px;
+    gap: var(--sp-2);
+    align-items: stretch;
+  }
+  .link-row select,
+  .link-row input {
+    min-width: 0;
+    /* Force the select to fill its grid column. Without this, native
+     * <select> sizes to its longest <option>, leaving the column
+     * looking narrower than it really is — and the "+ Add link" button
+     * (which DOES fill the column) ends up visually wider than the
+     * site pickers above it. */
+    width: 100%;
+  }
+  .link-row input[type='url'] {
+    background: var(--c-surface);
+    color: var(--c-text);
+    border: 1px solid var(--c-border);
+    border-radius: var(--rd-md);
+    padding: var(--sp-2) var(--sp-3);
+    font-family: inherit;
+    font-size: var(--fs-md);
+    &:focus {
+      border-color: var(--c-accent);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--c-accent-bg);
+    }
+  }
+  /* Borderless icon button — text-color shift only on hover.
+   * No background, no danger tint. Keeps the chrome quiet so the
+   * inputs themselves stay the visual focus. */
+  .remove {
+    width: 32px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--c-text-3);
+    border-radius: var(--rd-md);
+    cursor: pointer;
+    transition: color var(--tr-fast);
+    &:hover {
+      color: var(--c-text);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--c-accent);
+      outline-offset: 1px;
+    }
+    svg {
+      display: block;
+    }
+  }
+  /* Mirror .link-row's grid EXACTLY — including the trailing 32px
+   * column that holds the trash button — so all three tracks resolve
+   * to identical widths. Earlier the trailing column was `auto` with
+   * no content, collapsing to 0 and shifting the 0.4fr column wider
+   * than the site selects in .link-row. */
+  .add-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.4fr) 1fr 32px;
+    gap: var(--sp-2);
+  }
+  .add {
+    /* Occupies column 1 (where site select sits in .link-row above). */
+    width: 100%;
+    padding: var(--sp-2) var(--sp-3);
+    background: transparent;
+    color: var(--c-accent);
+    border: 1px dashed var(--c-accent);
+    border-radius: var(--rd-md);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+    transition:
+      background var(--tr-fast),
+      color var(--tr-fast);
+    &:hover {
+      background: var(--c-accent-bg);
+    }
+    /* No :disabled state — the button is hidden via {#if} when no more
+     * sites are available, so we never render it in a saturated form. */
+  }
+</style>

@@ -1,15 +1,25 @@
-# README.md
-README.md
+# Build artifacts
+**/node_modules
+**/.svelte-kit
+**/build
+**/target
 
-# .git
+# Local data / env
+**/.env
+**/.env.*
+!**/.env.example
+**/dev-data
+data/
+
+# Git / dev
 .git
 .gitignore
-
-# .vscode
+.github
+.worktrees
 .vscode
-
-# node_modules
-node_modules
-
-#editorconfig
-.editorconfig
+.idea
+docs
+tests
+*.md
+!README.md
+snapshot_*.png

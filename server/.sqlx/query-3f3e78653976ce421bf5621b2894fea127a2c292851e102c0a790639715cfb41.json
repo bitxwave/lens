@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n              id          AS \"id!: i64\",\n              kind        AS \"kind!: String\",\n              parent_id   AS \"parent_id?: i64\",\n              sort_order  AS \"sort_order!: i64\",\n              name        AS \"name!: String\",\n              slug        AS \"slug?: String\",\n              icon_kind   AS \"icon_kind?: String\",\n              icon_value  AS \"icon_value?: String\",\n              description AS \"description?: String\",\n              created_at  AS \"created_at!: i64\",\n              updated_at  AS \"updated_at!: i64\"\n           FROM cards\n           ORDER BY parent_id NULLS FIRST, sort_order, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "kind!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "parent_id?: i64",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "sort_order!: i64",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name!: String",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "slug?: String",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "icon_kind?: String",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "icon_value?: String",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "description?: String",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 9,
+        "type_info": "Integer"
+      },
+      {
+        "name": "updated_at!: i64",
+        "ordinal": 10,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3f3e78653976ce421bf5621b2894fea127a2c292851e102c0a790639715cfb41"
+}

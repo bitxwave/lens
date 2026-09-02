@@ -1,6 +1,0 @@
-export const siteName = 'XXXX 的小站导航'
-export const siteCopyright = 'Copyright © 2022. XXXX All rights reserved.'
-export const siteICPBeian = '京ICP备 12345678 号'
-export const siteICPBeianURL = 'https://beian.miit.gov.cn/'
-export const sitePoliceBeian = '京公网安备 12345678912345 号'
-export const sitePoliceBeianURL = 'http://www.beian.gov.cn/portal/index.do'

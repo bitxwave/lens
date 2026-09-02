@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n              id           AS \"id!: i64\",\n              value        AS \"value!: String\",\n              name         AS \"name!: String\",\n              sort_order   AS \"sort_order!: i64\",\n              is_default   AS \"is_default!: i64\"\n           FROM sites\n           ORDER BY sort_order, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "value!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "name!: String",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "sort_order!: i64",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_default!: i64",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b7339958c46413b5f9bc8620a9146d0d574fc78fe161fdef6601bbdac3f89b29"
+}

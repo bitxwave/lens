@@ -1,0 +1,137 @@
+/* Modern minimal tokens — Linear / Raycast inspired.
+ * Light is :root default; data-theme="dark" overrides.
+ * Dark mode auto-applies via prefers-color-scheme unless user toggle set.
+ */
+
+:root {
+  /* Spacing — 4px base */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Radius */
+  --rd-sm: 6px;
+  --rd-md: 10px;
+  --rd-lg: 14px;
+  --rd-pill: 999px;
+
+  /* Type */
+  --ft-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --ft-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-tight: 1.2;
+  --lh-base: 1.5;
+  --lh-loose: 1.7;
+
+  /* Color (light) */
+  --c-bg: #fafaf9;
+  --c-surface: #ffffff;
+  --c-surface-2: #f4f4f3;
+  --c-border: #e5e5e3;
+  --c-text: #1a1a18;
+  --c-text-2: #5a5a55;
+  --c-text-3: #8a8a85;
+  --c-accent: #4f46e5;
+  --c-accent-hover: #4338ca;
+  --c-accent-bg: #eef2ff;
+  --c-success: #047857;
+  --c-warn: #b45309;
+  --c-danger: #b91c1c;
+  --c-danger-bg: #fef2f2;
+
+  /* Shadow (light) */
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
+
+  /* Card — soft directional drop shadow (sits below the card so the
+   * gradient backdrop doesn't read as a dark halo around it). Light
+   * theme: low opacity violet tint kept consistent with the brand
+   * palette. */
+  --sh-card: 0 4px 16px rgba(35, 25, 60, 0.18);
+  --sh-card-hover: 0 8px 22px rgba(35, 25, 60, 0.26);
+
+  /* Card label color — sits over the vibrant gradient, so white + shadow. */
+  --c-card-label: #ffffff;
+  --sh-card-label: 0 0 10px rgba(17, 17, 17, 0.85);
+
+  /* Section heading color (over gradient) */
+  --c-section-heading: rgba(255, 255, 255, 0.92);
+
+  /* Motion */
+  --tr-fast: 120ms ease-out;
+  --tr-base: 180ms ease-out;
+  --tr-slow: 260ms ease-out;
+}
+
+/* Dark — deep midnight, macOS Sonoma / Raycast inspired.
+ * App chrome (admin / dialogs) uses solid surfaces; the launchpad
+ * gradient + frosted card surface come from app.scss + Card.svelte
+ * (which override `.card` background under [data-theme='dark']).
+ * Accent shifted lighter (indigo-300) for legible contrast on dark. */
+[data-theme='dark'] {
+  --c-bg: #0a0c14;
+  --c-surface: #161a24;
+  --c-surface-2: #1e2231;
+  --c-border: #2c3041;
+  --c-text: #f1f2f5;
+  --c-text-2: #a5a8b3;
+  --c-text-3: #6c6f7d;
+  --c-accent: #a5b4fc;
+  --c-accent-hover: #c7d2fe;
+  --c-accent-bg: rgba(99, 102, 241, 0.18);
+  --c-success: #34d399;
+  --c-warn: #fbbf24;
+  --c-danger: #f87171;
+  --c-danger-bg: rgba(248, 113, 113, 0.12);
+
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.55);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, 0.55);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  /* Card shadow on dark — slight blue under-glow (instead of pure black)
+   * so cards over the indigo gradient look lifted, not stamped flat. */
+  --sh-card: 0 6px 18px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  --sh-card-hover: 0 14px 32px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+
+  --c-card-label: #f1f2f5;
+  --sh-card-label: 0 1px 8px rgba(0, 0, 0, 0.75);
+
+  --c-section-heading: rgba(241, 242, 245, 0.88);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --tr-fast: 0ms;
+    --tr-base: 0ms;
+    --tr-slow: 0ms;
+  }
+}
+
+/* App-level resets that depend on tokens */
+html,
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--ft-sans);
+  font-size: var(--fs-md);
+  line-height: var(--lh-base);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--rd-sm);
+}
