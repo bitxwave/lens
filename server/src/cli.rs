@@ -1,11 +1,16 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use std::io::{self, Write};
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 use crate::auth::password;
 use crate::config::Settings;
 use crate::db::{connect, migrate};
 use crate::repo::{config_keys as k, ConfigRepo, SqlxConfigRepo};
+
+const HEALTHCHECK_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Parser, Debug)]
 #[command(name = "lens", version)]
@@ -22,10 +27,17 @@ pub enum Command {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Probe the running server's /api/health and exit non-zero if it is not healthy.
+    /// Used by the Docker HEALTHCHECK, since the distroless image has no shell or curl.
+    Healthcheck,
 }
 
 pub async fn run_command(cmd: Command) -> anyhow::Result<()> {
     match cmd {
+        Command::Healthcheck => {
+            let settings = Settings::load()?;
+            healthcheck(settings.port).await
+        }
         Command::ResetPassword { password: maybe } => {
             let settings = Settings::load()?;
             let pool = connect(&settings.db_url()).await.context("db connect")?;
@@ -70,4 +82,31 @@ pub async fn run_command(cmd: Command) -> anyhow::Result<()> {
             Ok(())
         }
     }
+}
+
+async fn healthcheck(port: u16) -> anyhow::Result<()> {
+    let probe = async {
+        let mut stream = TcpStream::connect(("127.0.0.1", port))
+            .await
+            .context("connect")?;
+        stream
+            .write_all(b"GET /api/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await
+            .context("send request")?;
+        let mut resp = Vec::new();
+        stream
+            .read_to_end(&mut resp)
+            .await
+            .context("read response")?;
+        anyhow::Ok(resp)
+    };
+    let resp = tokio::time::timeout(HEALTHCHECK_TIMEOUT, probe)
+        .await
+        .context("timed out")??;
+    if !resp.starts_with(b"HTTP/1.1 200") {
+        let status_line =
+            String::from_utf8_lossy(resp.split(|&b| b == b'\r').next().unwrap_or_default());
+        anyhow::bail!("unhealthy: {status_line}");
+    }
+    Ok(())
 }

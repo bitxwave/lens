@@ -48,5 +48,9 @@ ENV PORT=8080 \
     SECURE_COOKIES=false
 VOLUME /app/data
 EXPOSE 8080
+# distroless has no shell, curl or wget, so the probe is the binary itself:
+# `lens healthcheck` GETs /api/health on $PORT and exits non-zero on failure.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD ["/usr/local/bin/lens", "healthcheck"]
 USER nonroot
 ENTRYPOINT ["/usr/local/bin/lens"]
